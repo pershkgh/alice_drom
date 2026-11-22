@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -164,6 +165,20 @@ namespace MusicControl
             if (NavDiag.Content is StackPanel diagStack && diagStack.Children[0] is System.Windows.Shapes.Path diagPath)
             {
                 diagPath.Stroke = (Brush)FindResource(page == "diag" ? "TextBrush" : "MutedBrush");
+            }
+        }
+
+        private const string ProjectUrl = "https://github.com/pershkgh/alice_drom";
+
+        private void OnOpenGithub(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(ProjectUrl) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                AddLocalRow("WARNING", "app", "не удалось открыть браузер: " + ex.Message);
             }
         }
 
@@ -486,7 +501,6 @@ namespace MusicControl
         {
             var brush = (Brush)FindResource(ok ? "GreenBrush" : "RedBrush");
             DotServer.Fill = brush;
-            DotServerRail.Fill = brush;
             TxtServer.Text = "сервер: " + text;
         }
 
@@ -510,10 +524,6 @@ namespace MusicControl
             if (BtnPlayIcon != null)
             {
                 BtnPlayIcon.Data = icon;
-            }
-            if (RailPlayIcon != null)
-            {
-                RailPlayIcon.Data = icon;
             }
         }
 
@@ -593,7 +603,7 @@ namespace MusicControl
             {
                 elapsed += (DateTime.UtcNow - _statusAt).TotalSeconds;
             }
-            elapsed = Math.Clamp(elapsed, 0, _duration);
+            elapsed = Math.Min(Math.Max(elapsed, 0), _duration);
             PrgTrack.Value = Math.Min(100, elapsed / _duration * 100.0);
             TxtElapsed.Text = FormatTime(elapsed);
         }
@@ -601,7 +611,7 @@ namespace MusicControl
         private void ShowVolume(int level)
         {
             _suppressVolume = true;
-            SldVolume.Value = Math.Clamp(level, 0, 10);
+            SldVolume.Value = Math.Min(Math.Max(level, 0), 10);
             TxtVolume.Text = level + "/10";
             _suppressVolume = false;
         }

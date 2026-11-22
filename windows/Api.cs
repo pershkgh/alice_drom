@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
+using System.Runtime.Serialization.Json;
 
 namespace MusicControl
 {
@@ -106,10 +106,50 @@ namespace MusicControl
     /// <summary>Клиент HTTP-API навыка «Домашняя музыка».</summary>
     public sealed class Api
     {
-        private static readonly JsonSerializerOptions JsonOpts = new()
+        /// <summary>Разбор ответа: DataContractJsonSerializer из состава .NET Framework
+        /// (System.Text.Json в net48 нет, а тянуть пакет — лишние сотни килобайт).</summary>
+        private static T Parse<T>(string json)
         {
-            PropertyNameCaseInsensitive = true
-        };
+            var serializer = new DataContractJsonSerializer(typeof(T));
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+            {
+                return (T)serializer.ReadObject(stream);
+            }
+        }
+
+        /// <summary>Экранирование строки для JSON-тела запроса.</summary>
+        private static string JsonString(string value)
+        {
+            if (value == null)
+            {
+                return "null";
+            }
+            var sb = new StringBuilder(value.Length + 8);
+            sb.Append('"');
+            foreach (var ch in value)
+            {
+                switch (ch)
+                {
+                    case '"': sb.Append("\\\""); break;
+                    case '\\': sb.Append("\\\\"); break;
+                    case '\n': sb.Append("\\n"); break;
+                    case '\r': sb.Append("\\r"); break;
+                    case '\t': sb.Append("\\t"); break;
+                    default:
+                        if (ch < 0x20)
+                        {
+                            sb.Append("\\u").Append(((int)ch).ToString("x4"));
+                        }
+                        else
+                        {
+                            sb.Append(ch);
+                        }
+                        break;
+                }
+            }
+            sb.Append('"');
+            return sb.ToString();
+        }
 
         private readonly HttpClient _http;
 
@@ -118,7 +158,11 @@ namespace MusicControl
 
         public Api()
         {
-            BaseUrl = ReadBaseUrl();
+            BaseUrl = ReadSetting("baseUrl");
+            if (string.IsNullOrWhiteSpace(BaseUrl))
+            {
+                BaseUrl = "http://127.0.0.1:8100";
+            }
             Token = ReadSetting("apiToken");
             _http = new HttpClient { BaseAddress = new Uri(BaseUrl.TrimEnd('/') + "/") };
             _http.DefaultRequestHeaders.Add("X-Source", "app");
@@ -139,7 +183,7 @@ namespace MusicControl
             var url = BaseUrl.TrimEnd('/') + relative;
             if (!string.IsNullOrWhiteSpace(Token))
             {
-                url += (url.Contains('?') ? "&" : "?") + "token=" + Uri.EscapeDataString(Token);
+                url += (url.Contains("?") ? "&" : "?") + "token=" + Uri.EscapeDataString(Token);
             }
             return url;
         }
@@ -153,93 +197,86 @@ namespace MusicControl
                 {
                     return "";
                 }
-                using var doc = JsonDocument.Parse(File.ReadAllText(path));
-                return doc.RootElement.TryGetProperty(key, out var el) && el.ValueKind == JsonValueKind.String
-                    ? (el.GetString() ?? "")
-                    : "";
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        private static string ReadBaseUrl()
-        {
-            const string fallback = "http://127.0.0.1:8100";
-            try
-            {
-                var path = Path.Combine(AppContext.BaseDirectory, "config.json");
-                if (!File.Exists(path))
+                var map = Parse<Dictionary<string, object>>(File.ReadAllText(path));
+                if (map != null && map.TryGetValue(key, out var value) && value != null)
                 {
-                    return fallback;
-                }
-                using var doc = JsonDocument.Parse(File.ReadAllText(path));
-                if (doc.RootElement.TryGetProperty("baseUrl", out var el) && el.ValueKind == JsonValueKind.String)
-                {
-                    var url = el.GetString();
-                    if (!string.IsNullOrWhiteSpace(url))
-                    {
-                        return url.TrimEnd('/');
-                    }
+                    return Convert.ToString(value) ?? "";
                 }
             }
             catch
             {
-                // некорректный config.json — работаем с умолчанием
+                // некорректный config.json — работаем с умолчаниями
             }
-            return fallback;
+            return "";
         }
 
         public async Task<StatusResponse> GetStatusAsync()
         {
-            using var resp = await _http.GetAsync("api/status").ConfigureAwait(false);
-            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return JsonSerializer.Deserialize<StatusResponse>(text, JsonOpts) ?? new StatusResponse { ok = false, error = "пустой ответ" };
+            using (var resp = await _http.GetAsync("api/status").ConfigureAwait(false))
+            {
+                var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return Parse<StatusResponse>(text) ?? new StatusResponse { ok = false, error = "пустой ответ" };
+            }
         }
 
         public async Task<CommandResponse> SendCommandAsync(string command)
         {
-            var body = JsonSerializer.Serialize(new { text = command });
-            using var content = new StringContent(body, Encoding.UTF8, "application/json");
-            using var resp = await _http.PostAsync("api/command", content).ConfigureAwait(false);
-            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return JsonSerializer.Deserialize<CommandResponse>(text, JsonOpts)
-                   ?? new CommandResponse { ok = false, error = "пустой ответ" };
+            var body = "{\"text\":" + JsonString(command) + "}";
+            using (var content = new StringContent(body, Encoding.UTF8, "application/json"))
+            using (var resp = await _http.PostAsync("api/command", content).ConfigureAwait(false))
+            {
+                var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return Parse<CommandResponse>(text) ?? new CommandResponse { ok = false, error = "пустой ответ" };
+            }
         }
 
         public async Task<QueueResponse> GetQueueAsync(int offset, int limit, int near = -1)
         {
-            var nearArg = near >= 0 ? $"&near={near}" : "";
-            using var resp = await _http.GetAsync($"api/queue?offset={offset}&limit={limit}{nearArg}").ConfigureAwait(false);
-            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return JsonSerializer.Deserialize<QueueResponse>(text, JsonOpts)
-                   ?? new QueueResponse { ok = false, error = "пустой ответ" };
+            var nearArg = near >= 0 ? "&near=" + near : "";
+            using (var resp = await _http.GetAsync("api/queue?offset=" + offset + "&limit=" + limit + nearArg).ConfigureAwait(false))
+            {
+                var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return Parse<QueueResponse>(text) ?? new QueueResponse { ok = false, error = "пустой ответ" };
+            }
         }
 
         public async Task<DiagnosticsResponse> GetDiagnosticsAsync()
         {
-            using var resp = await _http.GetAsync("api/diagnostics").ConfigureAwait(false);
-            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return JsonSerializer.Deserialize<DiagnosticsResponse>(text, JsonOpts)
-                   ?? new DiagnosticsResponse { ok = false, checks = new List<DiagCheck>() };
+            using (var resp = await _http.GetAsync("api/diagnostics").ConfigureAwait(false))
+            {
+                var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return Parse<DiagnosticsResponse>(text)
+                       ?? new DiagnosticsResponse { ok = false, checks = new List<DiagCheck>() };
+            }
         }
 
         public async Task<CommandResponse> PlayIndexAsync(int index)
         {
-            var body = JsonSerializer.Serialize(new { index });
-            using var content = new StringContent(body, Encoding.UTF8, "application/json");
-            using var resp = await _http.PostAsync("api/play-index", content).ConfigureAwait(false);
-            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return JsonSerializer.Deserialize<CommandResponse>(text, JsonOpts)
-                   ?? new CommandResponse { ok = false, error = "пустой ответ" };
+            var body = "{\"index\":" + index + "}";
+            using (var content = new StringContent(body, Encoding.UTF8, "application/json"))
+            using (var resp = await _http.PostAsync("api/play-index", content).ConfigureAwait(false))
+            {
+                var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                return Parse<CommandResponse>(text) ?? new CommandResponse { ok = false, error = "пустой ответ" };
+            }
         }
 
         public async Task<EventsResponse> GetEventsAsync(long since, int limit = 200)
         {
-            using var resp = await _http.GetAsync($"api/events?since={since}&limit={limit}").ConfigureAwait(false);
-            var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return JsonSerializer.Deserialize<EventsResponse>(text, JsonOpts) ?? new EventsResponse { events = new List<EventRow>() };
+            using (var resp = await _http.GetAsync("api/events?since=" + since + "&limit=" + limit).ConfigureAwait(false))
+            {
+                var text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var res = Parse<EventsResponse>(text);
+                if (res == null)
+                {
+                    return new EventsResponse { events = new List<EventRow>() };
+                }
+                if (res.events == null)
+                {
+                    res.events = new List<EventRow>();
+                }
+                return res;
+            }
         }
     }
 }

@@ -2,10 +2,11 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- .NET Framework 4.8 уже входит в Windows 10/11: exe весит сотни килобайт,
+         ничего доустанавливать не нужно -->
+    <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
-    <!-- сборка Windows-приложения на macOS/Linux -->
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>10.0</LangVersion>
     <AssemblyName>MusicControl</AssemblyName>
     <RootNamespace>MusicControl</RootNamespace>
     <Nullable>disable</Nullable>
@@ -14,12 +15,16 @@
     <Company>Home SRV</Company>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <DebugType>none</DebugType>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <!-- сборка net48 на macOS/Linux: референсные сборки Framework -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
   </ItemGroup>
 
 </Project>

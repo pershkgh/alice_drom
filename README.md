@@ -108,17 +108,16 @@ cd alice-music
 
 ## 🪟 Приложение для Windows
 
-**Готовый файл** — в разделе [Releases](../../releases): `MusicControl.exe` (~70 МБ,
+**Готовый файл** — в разделе [Releases](../../releases): `MusicControl.exe` (~110 КБ,
 .NET внутри, ставить ничего не нужно) и `config.json` к нему. Собрать самому:
 
 
 ```bash
 cd windows
-dotnet publish -c Release -r win-x64 --self-contained true \
-  -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish
+dotnet build -c Release     # → bin/Release/net48/MusicControl.exe (~110 КБ)
 ```
 
-Получится один `MusicControl.exe` (~70 МБ, ничего ставить не нужно):
+Получится один `MusicControl.exe` (~110 КБ, .NET Framework 4.8 уже есть в Windows 10/11):
 плеер, журнал, диагностика, очередь с обложками. В `windows/config.json`
 нужно вписать адрес сервера и `API_TOKEN`.
 

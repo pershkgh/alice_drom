@@ -15,15 +15,15 @@
 
 ```bash
 cd windows
-dotnet publish -c Release -r win-x64 --self-contained true \
-  -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:EnableCompressionInSingleFile=true \
-  -o publish
+dotnet build -c Release
+# → bin/Release/net48/MusicControl.exe
 ```
 
-Получится `publish/MusicControl.exe` (~70 МБ): .NET внутри, устанавливать ничего не нужно.
-Собирается и на macOS/Linux — свойство `EnableWindowsTargeting` уже включено в проект.
+Получится `bin/Release/net48/MusicControl.exe` — **около 110 КБ**.
+
+Приложение собрано под **.NET Framework 4.8**: он входит в Windows 10 (начиная с 1903)
+и Windows 11, поэтому доустанавливать ничего не нужно. Собирается и на macOS/Linux:
+для этого в проект добавлен пакет `Microsoft.NETFramework.ReferenceAssemblies`.
 
 ## Настройка
 
