@@ -665,7 +665,9 @@ async def api_status(request: Request) -> dict[str, Any]:
         queue = await ma.queue(player_id)
         # MA отдаёт QueueItem-обёртку: исполнитель, альбом и длительность
         # лежат внутри media_item, а name — в обёртке
-        item = queue.get("current_item") or {}
+        raw_item = queue.get("current_item") or {}
+        cover = _cover_of(raw_item) if isinstance(raw_item, dict) else None
+        item = raw_item
         if isinstance(item, dict):
             item = item.get("media_item") or item
         volume = player.get("volume_level")
@@ -690,6 +692,7 @@ async def api_status(request: Request) -> dict[str, Any]:
             "album": (item.get("album") or {}).get("name") if item else None,
             "artist": ((item.get("artists") or [{}])[0] or {}).get("name") if item else None,
             "title": item.get("name") if item else None,
+            "cover": f"/api/cover?id={cover}" if cover else None,
             "auth": bool(API_TOKEN),
             "uptime": _uptime_human(),
             "elapsed": round(queue.get("elapsed_time") or 0, 1),

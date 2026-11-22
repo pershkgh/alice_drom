@@ -89,6 +89,14 @@ echo "$STATUS" | grep -q '"title":"Bring Me To Life"'  && ok "трек из мо
 echo "$STATUS" | grep -q '"artist":"Evanescence"'      && ok "исполнитель: Evanescence" || bad "исполнитель не разобран"
 echo "$STATUS" | grep -q '"duration":235'              && ok "длительность 235 с" || bad "длительность не та"
 echo "$STATUS" | grep -q '"volume_1_10":4'             && ok "громкость 40 → 4/10" || bad "громкость не пересчитана"
+if echo "$STATUS" | grep -q '"cover":"/api/cover?id='; then
+  ok "статус отдаёт обложку текущего трека"
+  CV=$(echo "$STATUS" | sed -n 's/.*"cover":"\([^"]*\)".*/\1/p')
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -H "X-Api-Token: $TOKEN" "http://127.0.0.1:$SKILL_PORT$CV")
+  [ "$code" = "200" ] && ok "обложка из статуса скачивается (200)" || bad "обложка из статуса: код $code"
+else
+  bad "в статусе нет обложки: $STATUS"
+fi
 note "$STATUS"
 
 # ── 6. команды ───────────────────────────────────────────────────────────────

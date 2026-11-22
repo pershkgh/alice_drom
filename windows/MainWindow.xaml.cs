@@ -70,6 +70,7 @@ namespace MusicControl
     {
         private Api _api = new();
         private string _skillName = "";
+        private string _coverUrl;
         private readonly HttpClient _img = new();
         private readonly ObservableCollection<LogRow> _rows = new();
         private readonly List<LogRow> _all = new();
@@ -631,6 +632,55 @@ namespace MusicControl
             }
         }
 
+        /// <summary>Обложка текущего трека: грузим только когда сменился URL.</summary>
+        private async void ShowCover(string relative)
+        {
+            var url = _api.CoverUrl(relative);
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                ResetCover();
+                return;
+            }
+            if (url == _coverUrl)
+            {
+                return;
+            }
+            _coverUrl = url;
+            try
+            {
+                var bitmap = await Task.Run(() =>
+                {
+                    var image = new BitmapImage();
+                    image.BeginInit();
+                    image.CacheOption = BitmapCacheOption.OnLoad;
+                    image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                    image.UriSource = new Uri(url);
+                    image.EndInit();
+                    image.Freeze();
+                    return image;
+                });
+                if (_coverUrl != url)
+                {
+                    return; // пока грузили, трек сменился
+                }
+                ImgCover.Source = bitmap;
+                ImgCover.Visibility = Visibility.Visible;
+                CoverPlaceholder.Visibility = Visibility.Collapsed;
+            }
+            catch
+            {
+                ResetCover();
+            }
+        }
+
+        private void ResetCover()
+        {
+            _coverUrl = null;
+            ImgCover.Source = null;
+            ImgCover.Visibility = Visibility.Collapsed;
+            CoverPlaceholder.Visibility = Visibility.Visible;
+        }
+
         private void ShowTrack(StatusResponse st)
         {
             if (!string.IsNullOrWhiteSpace(st.skill_name))
@@ -645,6 +695,7 @@ namespace MusicControl
 
             TxtTrack.Text = title;
             TxtSub.Text = BuildSubtitle(st);
+            ShowCover(st.cover);
 
             var total = st.duration > 0 ? st.duration : 0;
             var done = Math.Max(0, st.elapsed);

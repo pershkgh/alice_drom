@@ -18,6 +18,7 @@ namespace MusicControl
         public string artist { get; set; }
         public string album { get; set; }
         public string track { get; set; }
+        public string cover { get; set; }
         public double elapsed { get; set; }
         public double duration { get; set; }
     }
@@ -197,6 +198,7 @@ namespace MusicControl
                 artist = Json.Str(root, "artist"),
                 album = Json.Str(root, "album"),
                 track = Json.Str(root, "track"),
+                cover = Json.Str(root, "cover"),
                 elapsed = Json.Num(root, "elapsed"),
                 duration = Json.Num(root, "duration")
             };

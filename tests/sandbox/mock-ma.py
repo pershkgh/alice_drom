@@ -16,16 +16,21 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 18095
 CALLS_LOG = sys.argv[2] if len(sys.argv) > 2 else "/tmp/alice-sandbox/calls.log"
 PLAYER_ID = "ys_SANDBOX"
 
+# структура как у настоящего MA: обложка есть и у элемента очереди (image.proxy_id),
+# и внутри media_item.metadata.images — навык умеет читать оба места
 TRACK = {
     "name": "Evanescence — Bring Me To Life",
     "uri": "library://track/1",
+    "image": {"type": "thumb", "path": "mock-1", "provider": "mock",
+              "proxy_id": "sandbox-cover-1"},
     "media_item": {
         "name": "Bring Me To Life",
         "uri": "library://track/1",
         "duration": 235,
         "artists": [{"name": "Evanescence"}],
         "album": {"name": "Fallen"},
-        "image": {"proxy_id": "sandbox-cover-1"},
+        "metadata": {"images": [{"type": "thumb", "path": "mock-1", "provider": "mock",
+                                 "proxy_id": "sandbox-cover-1"}]},
     },
 }
 
@@ -59,12 +64,14 @@ ITEMS = [
     {
         "name": f"Трек {i + 1}",
         "uri": f"library://track/{i + 1}",
+        "image": {"type": "thumb", "provider": "mock", "proxy_id": f"sandbox-cover-{i + 1}"},
         "media_item": {
             "name": f"Трек {i + 1}",
             "duration": 200,
             "artists": [{"name": "Тестовый исполнитель"}],
             "album": {"name": "Тестовый альбом"},
-            "image": {"proxy_id": f"sandbox-cover-{i + 1}"},
+            "metadata": {"images": [{"type": "thumb", "provider": "mock",
+                                     "proxy_id": f"sandbox-cover-{i + 1}"}]},
         },
     }
     for i in range(5)
