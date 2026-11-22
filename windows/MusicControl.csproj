@@ -13,6 +13,7 @@
     <Product>Домашняя музыка — пульт Алисы</Product>
     <Company>Home SRV</Company>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

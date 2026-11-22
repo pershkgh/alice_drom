@@ -108,7 +108,9 @@ cd alice-music
 
 ## 🪟 Приложение для Windows
 
-Исходники в `windows/`, сборка:
+**Готовый файл** — в разделе [Releases](../../releases): `MusicControl.exe` (~70 МБ,
+.NET внутри, ставить ничего не нужно) и `config.json` к нему. Собрать самому:
+
 
 ```bash
 cd windows
