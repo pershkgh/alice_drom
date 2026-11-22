@@ -46,6 +46,9 @@ Music Assistant нужен обязательно — это слой, кото�
 
 ## 🚀 Установка
 
+> Подробное пошаговое руководство со скриншотами — **[docs/MANUAL.md](docs/MANUAL.md)**
+> (домен, Music Assistant, Яндекс.Диалоги, приложение, разбор поломок).
+
 ```bash
 git clone https://gitlab.com/<ваш-ник>/alice-music.git
 cd alice-music
