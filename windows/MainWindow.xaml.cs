@@ -71,6 +71,8 @@ namespace MusicControl
         private Api _api = new();
         private string _skillName = "";
         private string _coverUrl;
+        private string _coverTrack = "";
+        private readonly Dictionary<string, BitmapImage> _nowPlayingCovers = new Dictionary<string, BitmapImage>();
         private readonly HttpClient _img = new();
         private readonly ObservableCollection<LogRow> _rows = new();
         private readonly List<LogRow> _all = new();
@@ -632,24 +634,50 @@ namespace MusicControl
             }
         }
 
-        /// <summary>Обложка текущего трека: грузим только когда сменился URL.</summary>
-        private async void ShowCover(string relative)
+        /// <summary>
+        /// Обложка текущего трека.
+        ///
+        /// Правила, чтобы картинка не «моргала» на каждом опросе статуса:
+        ///  · один и тот же URL — ничего не делаем;
+        ///  · пока играет тот же трек, а сервер на миг не отдал cover — держим текущую;
+        ///  · уже скачанные обложки лежат в кэше (назад/перемешивание не качают заново).
+        /// </summary>
+        private async void ShowCover(StatusResponse st)
         {
-            var url = _api.CoverUrl(relative);
+            var key = (st.title ?? "") + "|" + (st.artist ?? "");
+            var url = _api.CoverUrl(st.cover);
+
             if (string.IsNullOrWhiteSpace(url))
             {
-                ResetCover();
+                // у трека нет обложки: заглушку ставим только если трек действительно другой
+                if (key != _coverTrack || ImgCover.Source == null)
+                {
+                    ResetCover();
+                    _coverTrack = key;
+                }
                 return;
             }
+
             if (url == _coverUrl)
             {
+                ShowCoverImage();
                 return;
             }
+
+            if (_nowPlayingCovers.TryGetValue(url, out var cached))
+            {
+                _coverUrl = url;
+                _coverTrack = key;
+                ImgCover.Source = cached;
+                ShowCoverImage();
+                return;
+            }
+
             _coverUrl = url;
+            _coverTrack = key;
             try
             {
-                // Качаем байты в фоне, а BitmapImage собираем уже в UI-потоке:
-                // WPF-овская загрузка по Uri с фонового потока может молча падать.
+                // качаем байты в фоне, BitmapImage собираем в UI-потоке
                 var bytes = await Task.Run(() =>
                 {
                     using (var client = new System.Net.WebClient())
@@ -671,15 +699,29 @@ namespace MusicControl
                     bitmap.EndInit();
                 }
                 bitmap.Freeze();
+                if (_nowPlayingCovers.Count > 40)
+                {
+                    _nowPlayingCovers.Clear(); // без фанатизма: при смене трека кэш не нужен
+                }
+                _nowPlayingCovers[url] = bitmap;
                 ImgCover.Source = bitmap;
-                ImgCover.Visibility = Visibility.Visible;
-                CoverPlaceholder.Visibility = Visibility.Collapsed;
+                ShowCoverImage();
             }
             catch (Exception ex)
             {
-                ResetCover();
+                // не гасим уже показанную обложку из-за сетевого сбоя
+                if (ImgCover.Source == null)
+                {
+                    ResetCover();
+                }
                 AddLocalRow("WARNING", "app", "обложка не загрузилась: " + ex.Message);
             }
+        }
+
+        private void ShowCoverImage()
+        {
+            ImgCover.Visibility = Visibility.Visible;
+            CoverPlaceholder.Visibility = Visibility.Collapsed;
         }
 
         private void ResetCover()
@@ -704,7 +746,7 @@ namespace MusicControl
 
             TxtTrack.Text = title;
             TxtSub.Text = BuildSubtitle(st);
-            ShowCover(st.cover);
+            ShowCover(st);
 
             var total = st.duration > 0 ? st.duration : 0;
             var done = Math.Max(0, st.elapsed);
