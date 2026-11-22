@@ -478,7 +478,7 @@
                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,0">
                             <TextBox x:Name="TxtSettingsUrl" Style="{StaticResource DarkTextBox}" FontSize="14"
                                      VerticalContentAlignment="Center" Width="700" HorizontalAlignment="Left"
-                                     ToolTip="например: http://192.168.1.120:8100"/>
+                                     ToolTip="например: http://192.168.1.10:8100"/>
                         </Border>
                         <TextBlock Text="IP-адрес сервера и порт навыка (8100). Можно вводить без http:// — добавим сами."
                                    Style="{StaticResource Muted}" Margin="2,7,0,0"/>

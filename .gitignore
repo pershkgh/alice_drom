@@ -14,3 +14,12 @@ skill/__pycache__/
 # локальное
 .DS_Store
 *.log
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+windows/dist/
+
+# артефакты релиза
+*.zip

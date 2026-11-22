@@ -154,6 +154,19 @@ docker compose up -d --build
 - API пульта закрыт токеном; не публикуйте порт 8100 в интернет без него.
 - Пароль от Яндекс-аккаунта вводится **в Music Assistant**, а не в этот проект.
 
+## 📚 Документация
+
+| Файл | О чём |
+|---|---|
+| [docs/MANUAL.md](docs/MANUAL.md) | подробная установка со скриншотами |
+| [docs/SETUP.md](docs/SETUP.md) | краткая установка и настройка |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 30 разобранных поломок |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | как это устроено внутри |
+| [docs/YANDEX-STATION.md](docs/YANDEX-STATION.md) | почему нужен свой провайдер станции |
+| [CHANGELOG.md](CHANGELOG.md) | что менялось |
+| [SECURITY.md](SECURITY.md) | как сообщить об уязвимости |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | как собрать и что можно менять |
+
 ## 📄 Лицензия и благодарности
 
 MIT — см. [LICENSE](LICENSE).

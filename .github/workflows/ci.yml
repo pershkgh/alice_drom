@@ -90,11 +90,17 @@ jobs:
           body: |
             Навык для Алисы + пульт для Windows.
 
-            Установка на сервере:
+            **Пульт для Windows** — `MusicControl.exe` ниже. Нужен Windows 10 (1903+) или 11,
+            .NET Framework 4.8 уже в системе, ставить ничего не надо. При первом запуске
+            приложение попросит адрес сервера и `API_TOKEN`.
+
+            **Навык на сервере:**
             ```
             git clone ${{ github.server_url }}/${{ github.repository }}.git
-            cd alice-music && ./install.sh
+            cd alice_drom && ./install.sh
             ```
+
+            Пошагово, со скриншотами — [docs/MANUAL.md](docs/MANUAL.md).
           files: |
             dist/MusicControl.exe
           generate_release_notes: true

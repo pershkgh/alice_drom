@@ -218,7 +218,7 @@ namespace MusicControl
             var probe = new Api(TxtSettingsUrl.Text, TxtSettingsToken.Text);
             if (!probe.IsConfigured)
             {
-                TxtSettingsResult.Text = "Укажите адрес сервера, например http://192.168.1.120:8100";
+                TxtSettingsResult.Text = "Укажите адрес сервера, например http://192.168.1.10:8100";
                 return;
             }
             TxtSettingsResult.Text = "Проверяю " + probe.BaseUrl + " …";
