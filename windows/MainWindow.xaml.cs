@@ -69,6 +69,7 @@ namespace MusicControl
     public partial class MainWindow : Window
     {
         private Api _api = new();
+        private string _skillName = "";
         private readonly HttpClient _img = new();
         private readonly ObservableCollection<LogRow> _rows = new();
         private readonly List<LogRow> _all = new();
@@ -603,6 +604,12 @@ namespace MusicControl
 
         private void SetStation(string state, bool available, string name)
         {
+            // имя навыка — из настроек сервера (SKILL_NAME), по умолчанию остаётся своё
+            if (!string.IsNullOrWhiteSpace(_skillName))
+            {
+                TxtSkillTitle.Text = _skillName;
+            }
+
             var map = new Dictionary<string, string>
             {
                 ["playing"] = "играет",
@@ -626,6 +633,12 @@ namespace MusicControl
 
         private void ShowTrack(StatusResponse st)
         {
+            if (!string.IsNullOrWhiteSpace(st.skill_name))
+            {
+                _skillName = st.skill_name;
+                TxtSkillTitle.Text = st.skill_name;
+            }
+
             var title = !string.IsNullOrWhiteSpace(st.title)
                 ? st.title
                 : (string.IsNullOrWhiteSpace(st.track) ? "ничего не играет" : st.track);

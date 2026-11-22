@@ -36,6 +36,7 @@ log = logging.getLogger("alice")
 
 MA_URL = os.getenv("MA_URL", "http://127.0.0.1:8095")
 MA_TOKEN = os.getenv("MA_TOKEN", "")
+SKILL_NAME = (os.getenv("SKILL_NAME") or "Домашняя музыка").strip()  # как вы назвали навык в Диалогах
 PLAYER_NAME = os.getenv("PLAYER_NAME", "")  # id или имя; пусто = единственная доступная станция
 API_TOKEN = (os.getenv("API_TOKEN") or "").strip()  # пусто = API открыт (только своя сеть!)
 STARTED_AT = time.time()
@@ -382,7 +383,7 @@ async def current_item(player_id: str) -> dict[str, Any] | None:
 
 
 async def handle(command: str) -> dict[str, Any]:
-    parsed = parse(command)
+    parsed = parse(command, SKILL_NAME)
     log.info("фраза=%r интент=%s query=%r level=%s", command, parsed.intent, parsed.query, parsed.level)
 
     if parsed.intent is Intent.PING:
@@ -390,7 +391,7 @@ async def handle(command: str) -> dict[str, Any]:
 
     if parsed.intent is Intent.LAUNCH:
         return ask(
-            "Домашняя музыка на связи. Скажи «что играет», «далее» или «включи» и название."
+            f"{SKILL_NAME} на связи. Скажи «что играет», «далее» или «включи» и название."
         )
 
     if parsed.intent is Intent.HELP:
@@ -640,7 +641,7 @@ async def webhook(request: Request) -> JSONResponse:
     # и Алиса продолжает своей музыкой.
     if not command.strip():
         result = ask(
-            "Домашняя музыка на связи. Скажи «что играет», «дальше» или «включи» и название."
+            f"{SKILL_NAME} на связи. Скажи «что играет», «дальше» или «включи» и название."
         )
     else:
         result = await handle(command)
@@ -670,6 +671,7 @@ async def api_status(request: Request) -> dict[str, Any]:
         volume = player.get("volume_level")
         return {
             "ok": True,
+            "skill_name": SKILL_NAME,
             "station": {
                 "player_id": player_id,
                 "name": player.get("display_name") or player_id,

@@ -77,7 +77,7 @@ RE_RESUME = re.compile(r"\b(продолжи|продолжай|продолжи
 RE_LOUDER = re.compile(r"\b(громче|погромче|прибавь)\b")
 RE_QUIETER = re.compile(r"\b(тише|потише|убавь)\b")
 RE_LAUNCH = re.compile(r"^(запусти|открой|включи|стартуй)\s+(?:навык\s+)?(.+)$")
-SKILL_NAME = re.compile(r"^(домашн\w*\s+музык\w*|домашн\w*|музык\w*)\s*")
+RE_SKILL_PREFIX = re.compile(r"^(домашн\w*\s+музык\w*|домашн\w*|музык\w*)\s*")
 RE_HELP = re.compile(r"\b(помощь|что ты умеешь|что умеешь|как пользоваться|навык)\b")
 
 HELP_TEXT = (
@@ -151,7 +151,15 @@ def parse_seek(text: str) -> str | None:
     return f"{sign * amount:+d}"
 
 
-def parse(raw: str) -> Parsed:
+def _name_pattern(skill_name: str) -> re.Pattern[str] | None:
+    r"""Регулярка под произвольное имя навыка: «моя радиоточка» → ^моя\s+радиоточка\s*."""
+    words = [w for w in normalize(skill_name).split() if w]
+    if not words:
+        return None
+    return re.compile(r"^" + r"\s+".join(re.escape(w) for w in words) + r"\s*")
+
+
+def parse(raw: str, skill_name: str = "") -> Parsed:
     text = normalize(raw or "")
     if not text:
         return Parsed(Intent.UNKNOWN)
@@ -163,7 +171,11 @@ def parse(raw: str) -> Parsed:
     # запуск и команду по отдельности (сессия навыка живёт всего несколько секунд)
     launch = RE_LAUNCH.match(text)
     if launch and ("навык" in text or launch.group(2).startswith("домашн")):
-        rest = SKILL_NAME.sub("", launch.group(2)).strip()
+        rest = launch.group(2)
+        custom = _name_pattern(skill_name)
+        if custom is not None:
+            rest = custom.sub("", rest)
+        rest = RE_SKILL_PREFIX.sub("", rest).strip()
         text = rest
         if not text:
             return Parsed(Intent.LAUNCH)

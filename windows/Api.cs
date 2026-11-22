@@ -10,6 +10,7 @@ namespace MusicControl
     public sealed class StatusResponse
     {
         public bool ok { get; set; }
+        public string skill_name { get; set; }
         public string error { get; set; }
         public StationInfo station { get; set; }
         public QueueInfo queue { get; set; }
@@ -190,6 +191,7 @@ namespace MusicControl
             var res = new StatusResponse
             {
                 ok = Json.Bool(root, "ok"),
+                skill_name = Json.Str(root, "skill_name"),
                 error = Json.Str(root, "error"),
                 title = Json.Str(root, "title"),
                 artist = Json.Str(root, "artist"),
