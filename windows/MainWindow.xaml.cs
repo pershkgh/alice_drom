@@ -68,7 +68,7 @@ namespace MusicControl
 
     public partial class MainWindow : Window
     {
-        private readonly Api _api = new();
+        private Api _api = new();
         private readonly HttpClient _img = new();
         private readonly ObservableCollection<LogRow> _rows = new();
         private readonly List<LogRow> _all = new();
@@ -130,6 +130,15 @@ namespace MusicControl
 
             Loaded += async (_, __) =>
             {
+                TxtSettingsUrl.Text = _api.BaseUrl;
+                TxtSettingsToken.Text = _api.Token;
+                if (!_api.IsConfigured)
+                {
+                    ShowPage("settings");
+                    TxtSettingsResult.Text = "Укажите адрес сервера и токен — это всё, что нужно для подключения.";
+                    SetServer(false, "не настроен");
+                    return;
+                }
                 SetServer(false, "подключение…");
                 await RefreshStatusAsync();
                 await RefreshEventsAsync();
@@ -147,10 +156,12 @@ namespace MusicControl
             PageHome.Visibility = page == "home" ? Visibility.Visible : Visibility.Collapsed;
             PageDiag.Visibility = page == "diag" ? Visibility.Visible : Visibility.Collapsed;
             PageQueue.Visibility = page == "queue" ? Visibility.Visible : Visibility.Collapsed;
+            PageSettings.Visibility = page == "settings" ? Visibility.Visible : Visibility.Collapsed;
 
             NavHome.Style = (Style)FindResource(page == "home" ? "NavButtonActive" : "NavButton");
             NavDiag.Style = (Style)FindResource(page == "diag" ? "NavButtonActive" : "NavButton");
             NavQueue.Style = (Style)FindResource(page == "queue" ? "NavButtonActive" : "NavButton");
+            NavSettings.Style = (Style)FindResource(page == "settings" ? "NavButtonActive" : "NavButton");
 
             // иконки навигации: активная — светлая
             var iconFill = (Brush)FindResource(page == "home" ? "TextBrush" : "MutedBrush");
@@ -192,6 +203,86 @@ namespace MusicControl
         {
             ShowPage("diag");
             await RefreshDiagnosticsAsync();
+        }
+
+        private void OnNavSettings(object sender, RoutedEventArgs e)
+        {
+            TxtSettingsUrl.Text = _api.BaseUrl;
+            TxtSettingsToken.Text = _api.Token;
+            ShowPage("settings");
+        }
+
+        private async void OnSettingsTest(object sender, RoutedEventArgs e)
+        {
+            var probe = new Api(TxtSettingsUrl.Text, TxtSettingsToken.Text);
+            if (!probe.IsConfigured)
+            {
+                TxtSettingsResult.Text = "Укажите адрес сервера, например http://192.168.1.120:8100";
+                return;
+            }
+            TxtSettingsResult.Text = "Проверяю " + probe.BaseUrl + " …";
+            try
+            {
+                var st = await probe.GetStatusAsync();
+                if (st == null)
+                {
+                    TxtSettingsResult.Text = "Нет ответа от " + probe.BaseUrl +
+                        ". Проверьте: сервер включён, навык слушает порт 8100, сеть доступна.";
+                    return;
+                }
+                if (!st.ok)
+                {
+                    TxtSettingsResult.Text = "Сервер ответил отказом: " + (st.error ?? "неизвестная причина") +
+                        ". Скорее всего неверный токен.";
+                    return;
+                }
+                var station = st.station != null && st.station.available ? "станция на связи" : "станция не в сети";
+                TxtSettingsResult.Text = "Сервер отвечает · " + station + " · громкость " +
+                    (st.station != null ? st.station.volume_1_10 : 0) + "/10" +
+                    (string.IsNullOrWhiteSpace(st.title) ? "" : " · сейчас: " + st.title);
+            }
+            catch (Exception ex)
+            {
+                TxtSettingsResult.Text = "Ошибка проверки: " + ex.Message;
+            }
+        }
+
+        private async void OnSettingsSave(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Api.SaveConfig(TxtSettingsUrl.Text, TxtSettingsToken.Text);
+                _api = new Api(TxtSettingsUrl.Text, TxtSettingsToken.Text);
+                TxtSettingsResult.Text = "Сохранено в " + Api.ConfigPath;
+                await RefreshStatusAsync();
+                if (_api.IsConfigured)
+                {
+                    ShowPage("home");
+                }
+            }
+            catch (Exception ex)
+            {
+                TxtSettingsResult.Text = "Не удалось сохранить: " + ex.Message + " (нет прав на папку?)";
+            }
+        }
+
+        private void OnSettingsOpenConfig(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (System.IO.File.Exists(Api.ConfigPath))
+                {
+                    Process.Start("explorer.exe", "/select,\"" + Api.ConfigPath + "\"");
+                }
+                else
+                {
+                    Process.Start("explorer.exe", "\"" + Api.ConfigFolder + "\"");
+                }
+            }
+            catch (Exception ex)
+            {
+                TxtSettingsResult.Text = "Не удалось открыть проводник: " + ex.Message;
+            }
         }
 
         private async void OnNavQueue(object sender, RoutedEventArgs e)
@@ -499,6 +590,12 @@ namespace MusicControl
 
         private void SetServer(bool ok, string text)
         {
+            if (!_api.IsConfigured)
+            {
+                DotServer.Fill = (Brush)FindResource("AmberBrush");
+                TxtServer.Text = "сервер: не настроен";
+                return;
+            }
             var brush = (Brush)FindResource(ok ? "GreenBrush" : "RedBrush");
             DotServer.Fill = brush;
             TxtServer.Text = "сервер: " + text;

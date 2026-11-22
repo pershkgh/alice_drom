@@ -54,6 +54,19 @@
                             <TextBlock Text="Очередь" FontSize="10" Margin="0,4,0,0" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <Button x:Name="NavSettings" Style="{StaticResource NavButton}" ToolTip="Настройки подключения" Click="OnNavSettings">
+                        <StackPanel>
+                            <Canvas Width="17" Height="17">
+                                <Line X1="1" Y1="4" X2="16" Y2="4" Stroke="#8A95BC" StrokeThickness="1.5"/>
+                                <Line X1="1" Y1="9" X2="16" Y2="9" Stroke="#8A95BC" StrokeThickness="1.5"/>
+                                <Line X1="1" Y1="14" X2="16" Y2="14" Stroke="#8A95BC" StrokeThickness="1.5"/>
+                                <Ellipse Canvas.Left="9.5" Canvas.Top="1.6" Width="4.8" Height="4.8" Fill="#EDF0FF"/>
+                                <Ellipse Canvas.Left="3" Canvas.Top="6.6" Width="4.8" Height="4.8" Fill="#EDF0FF"/>
+                                <Ellipse Canvas.Left="7.5" Canvas.Top="11.6" Width="4.8" Height="4.8" Fill="#EDF0FF"/>
+                            </Canvas>
+                            <TextBlock Text="Настройки" FontSize="10" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <Button Grid.Row="3" Style="{StaticResource RailButton}" Margin="0,0,0,20"
@@ -440,6 +453,62 @@
                     <Button x:Name="BtnQueueMore" Content="Показать ещё" Style="{StaticResource PillButton}"
                             HorizontalAlignment="Right" Height="36" Click="OnQueueMore"/>
                 </Grid>
+            </Grid>
+
+            <!-- страница «Настройки» -->
+            <Grid x:Name="PageSettings" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,18">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Настройки подключения" FontSize="25" FontWeight="SemiBold"/>
+                        <TextBlock Text="адрес сервера навыка и токен доступа" Style="{StaticResource Muted}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Style="{StaticResource Card}" MaxWidth="760" HorizontalAlignment="Left">
+                    <StackPanel>
+                        <TextBlock Text="АДРЕС СЕРВЕРА" Style="{StaticResource Caption}" Margin="0,0,0,7"/>
+                        <Border Height="46" CornerRadius="12" Background="#0E1428"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,0">
+                            <TextBox x:Name="TxtSettingsUrl" Style="{StaticResource DarkTextBox}" FontSize="14"
+                                     VerticalContentAlignment="Center" Width="700" HorizontalAlignment="Left"
+                                     ToolTip="например: http://192.168.1.120:8100"/>
+                        </Border>
+                        <TextBlock Text="IP-адрес сервера и порт навыка (8100). Можно вводить без http:// — добавим сами."
+                                   Style="{StaticResource Muted}" Margin="2,7,0,0"/>
+
+                        <TextBlock Text="ТОКЕН API" Style="{StaticResource Caption}" Margin="0,18,0,7"/>
+                        <Border Height="46" CornerRadius="12" Background="#0E1428"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,0">
+                            <TextBox x:Name="TxtSettingsToken" Style="{StaticResource DarkTextBox}" FontSize="14"
+                                     VerticalContentAlignment="Center" Width="700" HorizontalAlignment="Left"
+                                     ToolTip="API_TOKEN из файла .env на сервере"/>
+                        </Border>
+                        <TextBlock Text="Лежит в .env на сервере (API_TOKEN). Без токена сервер ответит 401."
+                                   Style="{StaticResource Muted}" Margin="2,7,0,0"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+                            <Button Content="Проверить связь" Style="{StaticResource PrimaryButton}" Height="42"
+                                    Click="OnSettingsTest"/>
+                            <Button Content="Сохранить" Style="{StaticResource PillButton}" Height="42"
+                                    Margin="10,0,0,0" Click="OnSettingsSave"/>
+                            <Button Content="Открыть config.json" Style="{StaticResource PillButton}" Height="42"
+                                    Margin="10,0,0,0" Click="OnSettingsOpenConfig"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="TxtSettingsResult" Style="{StaticResource Muted}" Margin="2,16,0,0"
+                                   TextWrapping="Wrap" Text=""/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Grid.Row="2" Style="{StaticResource Muted}" Margin="2,18,0,0" TextWrapping="Wrap" MaxWidth="760"
+                           HorizontalAlignment="Left"
+                           Text="Файл config.json лежит рядом с MusicControl.exe. Если приложение перенесли на другой компьютер — скопируйте его вместе с exe или впишите адрес и токен здесь заново."/>
             </Grid>
         </Grid>
     </Grid>
