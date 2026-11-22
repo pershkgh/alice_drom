@@ -1,0 +1,460 @@
+<Window x:Class="MusicControl.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Домашняя музыка — пульт Алисы"
+        Height="840" Width="1260" MinHeight="700" MinWidth="1040"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource WindowGradient}"
+        Foreground="{StaticResource TextBrush}"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Ideal"
+        UseLayoutRounding="True">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="88"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ================= левый рейл: логотип, разделы, транспорт ================= -->
+        <Border Grid.Column="0" Background="#0A0F1E" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Width="46" Height="46" CornerRadius="16" Margin="0,18,0,22"
+                        HorizontalAlignment="Center" Background="{StaticResource AccentGradient}">
+                    <TextBlock Text="♪" FontSize="22" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center">
+                    <Button x:Name="NavHome" Style="{StaticResource NavButtonActive}" ToolTip="Домой" Click="OnNavHome">
+                        <StackPanel>
+                            <Path Data="{StaticResource IconHome}" Width="17" Height="17" Fill="{StaticResource TextBrush}"
+                                  HorizontalAlignment="Center"/>
+                            <TextBlock Text="Домой" FontSize="10" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NavDiag" Style="{StaticResource NavButton}" ToolTip="Диагностика" Click="OnNavDiag">
+                        <StackPanel>
+                            <Path Style="{StaticResource IconStroke}" Data="{StaticResource IconPulse}" Width="18" Height="12"
+                                  HorizontalAlignment="Center"/>
+                            <TextBlock Text="Проверка" FontSize="10" Margin="0,5,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NavQueue" Style="{StaticResource NavButton}" ToolTip="Очередь" Click="OnNavQueue">
+                        <StackPanel>
+                            <Path Data="{StaticResource IconList}" Width="16" Height="16" Fill="{StaticResource MutedBrush}"
+                                  HorizontalAlignment="Center"/>
+                            <TextBlock Text="Очередь" FontSize="10" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" HorizontalAlignment="Center">
+                    <Border Height="1" Background="{StaticResource BorderBrush}" Margin="16,10,16,10"/>
+                    <Button Style="{StaticResource RailButton}" ToolTip="Назад" Click="OnPrev">
+                        <Path Style="{StaticResource IconPath}" Data="{StaticResource IconPrev}" Width="12" Height="12"/>
+                    </Button>
+                    <Button x:Name="RailPlay" Style="{StaticResource RailButton}" ToolTip="Пауза / продолжить" Click="OnPlayPause">
+                        <Path x:Name="RailPlayIcon" Style="{StaticResource IconPath}" Data="{StaticResource IconPause}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Style="{StaticResource RailButton}" ToolTip="Далее" Click="OnNext">
+                        <Path Style="{StaticResource IconPath}" Data="{StaticResource IconNext}" Width="12" Height="12"/>
+                    </Button>
+                    <Button Style="{StaticResource RailButton}" ToolTip="Стоп" Click="OnStop">
+                        <Path Style="{StaticResource IconPath}" Data="{StaticResource IconStop}" Width="10" Height="10"/>
+                    </Button>
+                </StackPanel>
+
+                <Ellipse x:Name="DotServerRail" Grid.Row="4" Width="10" Height="10" Margin="0,10,0,22"
+                         Fill="{StaticResource RedBrush}" HorizontalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- ================= контент ================= -->
+        <Grid Grid.Column="1" Margin="26,20,26,20">
+
+            <!-- страница «Домой» -->
+            <Grid x:Name="PageHome">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,18">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Домашняя музыка" FontSize="25" FontWeight="SemiBold"/>
+                        <TextBlock Text="пульт навыка Алисы" Style="{StaticResource Muted}" Margin="0,3,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,7" Margin="0,0,8,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="DotServer" Width="8" Height="8" Fill="{StaticResource RedBrush}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="TxtServer" Text="сервер" FontSize="12" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,7">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="DotStation" Width="8" Height="8" Fill="{StaticResource MutedBrush}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="TxtStation" Text="колонка" FontSize="12" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="352"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,16,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Width="172" Height="172" CornerRadius="24" Background="{StaticResource ArtGradient}">
+                                <Grid>
+                                    <Ellipse Width="120" Height="120" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                             Fill="#16204A" Opacity="0.55"/>
+                                    <TextBlock Text="♪" FontSize="56" Foreground="#AEB8FF"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Column="1" Margin="22,2,0,2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                                    <TextBlock Text="СЕЙЧАС ИГРАЕТ" Style="{StaticResource Caption}"/>
+                                    <TextBlock x:Name="TxtTrack" Text="—" FontSize="23" FontWeight="SemiBold"
+                                               Margin="0,7,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="TxtSub" Text="—" Style="{StaticResource Muted}"
+                                               Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                                    <ProgressBar x:Name="PrgTrack" Style="{StaticResource ProgressBarFlat}"
+                                                 Minimum="0" Maximum="100" Value="0"/>
+                                    <Grid Margin="0,7,0,0">
+                                        <TextBlock x:Name="TxtElapsed" Text="0:00" FontSize="11"
+                                                   Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Left"/>
+                                        <TextBlock x:Name="TxtDuration" Text="0:00" FontSize="11"
+                                                   Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid Grid.Row="2" Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource CircleButton}" ToolTip="Назад" Click="OnPrev">
+                                            <Path Style="{StaticResource IconPath}" Data="{StaticResource IconPrev}" Width="15" Height="15"/>
+                                        </Button>
+                                        <Button x:Name="BtnPlay" Style="{StaticResource CircleButtonAccent}" ToolTip="Пауза / продолжить" Click="OnPlayPause">
+                                            <Path x:Name="BtnPlayIcon" Data="{StaticResource IconPause}" Width="17" Height="17"
+                                                  Stretch="Uniform" Fill="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Button>
+                                        <Button Style="{StaticResource CircleButton}" ToolTip="Далее" Click="OnNext">
+                                            <Path Style="{StaticResource IconPath}" Data="{StaticResource IconNext}" Width="15" Height="15"/>
+                                        </Button>
+                                        <Button Style="{StaticResource CircleButton}" ToolTip="Стоп" Click="OnStop">
+                                            <Path Style="{StaticResource IconPath}" Data="{StaticResource IconStop}" Width="15" Height="15"/>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="16,0,0,0">
+                                        <Slider x:Name="SldVolume" Style="{StaticResource VolumeSlider}"
+                                                Width="150" HorizontalAlignment="Right"
+                                                Minimum="0" Maximum="10" Value="3"
+                                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                                ValueChanged="OnVolumeChanged"/>
+                                        <Grid Margin="0,4,2,0" Width="150">
+                                            <TextBlock Text="громкость" FontSize="11" Foreground="{StaticResource MutedBrush}"
+                                                       HorizontalAlignment="Left"/>
+                                            <TextBlock x:Name="TxtVolume" Text="3/10" FontSize="11"
+                                                       Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Text="Быстрые действия" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                            <UniformGrid Columns="2">
+                                <Button Content="Далее" Tag="дальше" Style="{StaticResource PillButton}" Margin="0,0,8,8" Click="OnQuickAction"/>
+                                <Button Content="Назад" Tag="назад" Style="{StaticResource PillButton}" Margin="0,0,0,8" Click="OnQuickAction"/>
+                                <Button Content="Пауза" Tag="пауза" Style="{StaticResource PillButton}" Margin="0,0,8,8" Click="OnQuickAction"/>
+                                <Button Content="Продолжить" Tag="продолжи" Style="{StaticResource PillButton}" Margin="0,0,0,8" Click="OnQuickAction"/>
+                                <Button Content="Стоп" Tag="стоп" Style="{StaticResource PillButton}" Margin="0,0,8,8" Click="OnQuickAction"/>
+                                <Button Content="Что играет" Tag="что играет" Style="{StaticResource PillButton}" Margin="0,0,0,8" Click="OnQuickAction"/>
+                                <Button Content="Избранное" Tag="включи избранное" Style="{StaticResource PillButton}" Margin="0,0,8,8" Click="OnQuickAction"/>
+                                <Button Content="Похожее" Tag="включи похожее" Style="{StaticResource PillButton}" Margin="0,0,0,8" Click="OnQuickAction"/>
+                                <Button Content="Перемешать" Tag="перемешай" Style="{StaticResource PillButton}" Margin="0,0,8,0" Click="OnQuickAction"/>
+                                <Button Content="По порядку" Tag="по порядку" Style="{StaticResource PillButton}" Click="OnQuickAction"/>
+                            </UniformGrid>
+
+                            <TextBlock Text="ПОВТОР" Style="{StaticResource Caption}" Margin="0,16,0,8"/>
+                            <UniformGrid Columns="3">
+                                <Button Content="Трек" Tag="повтори" Style="{StaticResource PillButton}" Margin="0,0,8,0" Click="OnQuickAction"/>
+                                <Button Content="Всё" Tag="повтори все" Style="{StaticResource PillButton}" Margin="0,0,8,0" Click="OnQuickAction"/>
+                                <Button Content="Выкл" Tag="выключи повтор" Style="{StaticResource PillButton}" Click="OnQuickAction"/>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="20,16,20,10">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Журнал" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtQueue" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Border Width="230" Height="34" CornerRadius="12" Background="#0E1428"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,0">
+                                    <Grid>
+                                        <TextBox x:Name="TxtFilter" Style="{StaticResource DarkTextBox}"
+                                                 VerticalContentAlignment="Center" TextChanged="OnFilterChanged"/>
+                                        <TextBlock x:Name="TxtFilterHint" Text="фильтр по слову" Foreground="#5C6690"
+                                                   FontSize="12" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    </Grid>
+                                </Border>
+                                <Button Content="Очистить" Style="{StaticResource PillButton}" Height="34"
+                                        Margin="8,0,0,0" Click="OnClearLog"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <ScrollViewer x:Name="LogScroll" Grid.Row="1" Margin="8,0,8,10" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="LogItems">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="12,2" Padding="12,8" CornerRadius="10" Background="#0D1327">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="72"/>
+                                                    <ColumnDefinition Width="96"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Time}" Foreground="{StaticResource MutedBrush}"
+                                                           FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Border Grid.Column="1" CornerRadius="8" Background="{Binding BadgeBrush}"
+                                                        Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Source}" FontSize="10.5" FontWeight="SemiBold"
+                                                               Foreground="#0B1020"/>
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding Text}" FontSize="12.5"
+                                                           Foreground="{Binding TextBrush}" TextWrapping="Wrap"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="3" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="3" Text="ЧТО ВКЛЮЧИТЬ ИЛИ КОМАНДА"
+                               Style="{StaticResource Caption}" Margin="2,0,0,7"/>
+
+                    <Border Grid.Row="1" Height="46" CornerRadius="12" Background="#0E1428"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,0">
+                        <TextBox x:Name="TxtPhrase" Style="{StaticResource DarkTextBox}" FontSize="14"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="например: сплин · дальше · избранное · перемотай на 1 минуту"
+                                 KeyDown="OnPhraseKeyDown"/>
+                    </Border>
+
+                    <Button Grid.Row="1" Grid.Column="1" Content="Включить" Style="{StaticResource PrimaryButton}"
+                            Height="46" Width="140" Margin="10,0,0,0" Click="OnPlayPhrase"/>
+                    <Button Grid.Row="1" Grid.Column="2" Content="Отправить как есть" Style="{StaticResource PillButton}"
+                            Height="46" Margin="8,0,0,0" Click="OnSendRaw"/>
+                </Grid>
+            </Grid>
+
+            <!-- страница «Диагностика» -->
+            <Grid x:Name="PageDiag" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,18">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Диагностика" FontSize="25" FontWeight="SemiBold"/>
+                        <TextBlock Text="проверка всей цепочки: навык → Music Assistant → колонка → поток"
+                                   Style="{StaticResource Muted}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,7" Margin="0,0,8,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="DotDiag" Width="8" Height="8" Fill="{StaticResource MutedBrush}"
+                                         VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="TxtDiagSummary" Text="не проверено" FontSize="12" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <Button Content="Проверить" Style="{StaticResource PrimaryButton}" Height="34" Click="OnDiagRefresh"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="DiagItems">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="10,3" Padding="14,11" CornerRadius="12" Background="#0D1327">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="22"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="10" Height="10" Fill="{Binding DotBrush}"
+                                                     VerticalAlignment="Top" Margin="0,5,0,0"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Detail}" FontSize="12"
+                                                           Foreground="{StaticResource MutedBrush}"
+                                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                <TextBlock Text="{Binding Hint}" FontSize="11.5"
+                                                           Foreground="{StaticResource AmberBrush}"
+                                                           TextWrapping="Wrap" Margin="0,4,0,0"
+                                                           Visibility="{Binding HintVisibility}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <TextBlock Grid.Row="2" x:Name="TxtDiagTime" Style="{StaticResource Muted}" Margin="2,12,0,0"
+                           Text="нажми «Проверить», чтобы прогнать все проверки"/>
+            </Grid>
+
+            <!-- страница «Очередь» -->
+            <Grid x:Name="PageQueue" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,18">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Очередь" FontSize="25" FontWeight="SemiBold"/>
+                        <TextBlock Text="что будет играть дальше — клик по строке включает трек"
+                                   Style="{StaticResource Muted}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border CornerRadius="14" Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14,7" Margin="0,0,8,0">
+                            <TextBlock x:Name="TxtQueueInfo" Text="—" FontSize="12"/>
+                        </Border>
+                        <Button Content="Обновить" Style="{StaticResource PillButton}" Height="34" Click="OnQueueRefresh"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="8">
+                    <ScrollViewer x:Name="QueueScroll" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="QueueItems">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource QueueRowButton}" Tag="{Binding Index}" Click="OnQueueItemClick">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="46"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Grid Width="46" Height="46">
+                                                <Border CornerRadius="10" Background="#16204A"/>
+                                                <TextBlock Text="♪" FontSize="16" Foreground="#7C88C8"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Image Source="{Binding Cover}" Width="46" Height="46" Stretch="UniformToFill">
+                                                    <Image.Clip>
+                                                        <RectangleGeometry Rect="0,0,46,46" RadiusX="10" RadiusY="10"/>
+                                                    </Image.Clip>
+                                                </Image>
+                                            </Grid>
+
+                                            <TextBlock Grid.Column="1" Text="{Binding Number}" FontSize="11.5"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="4,0,12,0">
+                                                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{Binding TitleBrush}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Sub}" FontSize="11.5"
+                                                           Foreground="{StaticResource MutedBrush}"
+                                                           TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="3" Text="{Binding DurationText}" FontSize="11.5"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <Grid Grid.Row="2" Margin="0,12,0,0">
+                    <TextBlock x:Name="TxtQueueStatus" Style="{StaticResource Muted}" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnQueueMore" Content="Показать ещё" Style="{StaticResource PillButton}"
+                            HorizontalAlignment="Right" Height="36" Click="OnQueueMore"/>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,16 @@
+# секреты
+.env
+.env.backup.*
+*.pem
+*.key
+
+# сборка
+windows/bin/
+windows/obj/
+windows/publish/
+skill/__pycache__/
+*.pyc
+
+# локальное
+.DS_Store
+*.log

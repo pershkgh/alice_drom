@@ -1,0 +1,66 @@
+# Домашняя музыка — навык для Алисы, который играет вашу библиотеку Navidrome
+# через Music Assistant на Яндекс.Станции.
+#
+#   docker compose up -d                  # только навык
+#   docker compose --profile ma up -d     # ещё и Music Assistant (если своего нет)
+#   docker compose --profile caddy up -d  # ещё и Caddy (если нет своего прокси)
+#
+# network_mode: host — чтобы навык видел настоящие сетевые соединения станции
+# (диагностика проверяет поток на 8097 и сокет станции на 1961).
+
+services:
+  skill:
+    build: ./skill
+    image: ${SKILL_IMAGE:-alice-music-skill:latest}
+    container_name: alice-skill
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ── Music Assistant с рабочим провайдером Яндекс.Станции ────────────────────
+  # Нужен, только если своего MA нет: docker compose --profile ma up -d
+  ma:
+    profiles: ["ma"]
+    build: ./ma-station
+    image: ${MA_IMAGE:-alice-music-ma:latest}
+    container_name: music-assistant
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      - ma-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  # ── Caddy: HTTPS и проксирование только /alice ─────────────────────────────
+  # Нужен, только если у вас нет своего обратного прокси.
+  caddy:
+    profiles: ["caddy"]
+    image: caddy:2.8-alpine
+    container_name: alice-caddy
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DOMAIN: ${DOMAIN}
+      EMAIL: ${EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  ma-data:
+  caddy-data:
+  caddy-config:

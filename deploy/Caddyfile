@@ -1,0 +1,28 @@
+# Наружу открыт только навык: /alice → наш сервис, всё остальное — 404.
+# Адрес и почта берутся из .env (Caddy подставит их сам).
+
+{
+	email {$EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	# Yandex стучится на /alice — префикс срезаем, навык ждёт "/"
+	handle_path /alice/* {
+		reverse_proxy 127.0.0.1:8100
+	}
+	handle_path /alice {
+		reverse_proxy 127.0.0.1:8100
+	}
+
+	# Всё остальное не публикуем: MA, Navidrome и пульт остаются в локальной сети
+	handle {
+		respond "alice-music: публично доступен только /alice" 404
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
