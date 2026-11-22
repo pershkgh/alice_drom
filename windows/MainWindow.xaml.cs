@@ -648,28 +648,37 @@ namespace MusicControl
             _coverUrl = url;
             try
             {
-                var bitmap = await Task.Run(() =>
+                // Качаем байты в фоне, а BitmapImage собираем уже в UI-потоке:
+                // WPF-овская загрузка по Uri с фонового потока может молча падать.
+                var bytes = await Task.Run(() =>
                 {
-                    var image = new BitmapImage();
-                    image.BeginInit();
-                    image.CacheOption = BitmapCacheOption.OnLoad;
-                    image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-                    image.UriSource = new Uri(url);
-                    image.EndInit();
-                    image.Freeze();
-                    return image;
+                    using (var client = new System.Net.WebClient())
+                    {
+                        client.Headers["X-Api-Token"] = _api.Token ?? "";
+                        return client.DownloadData(url);
+                    }
                 });
                 if (_coverUrl != url)
                 {
                     return; // пока грузили, трек сменился
                 }
+                var bitmap = new BitmapImage();
+                using (var stream = new MemoryStream(bytes))
+                {
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                }
+                bitmap.Freeze();
                 ImgCover.Source = bitmap;
                 ImgCover.Visibility = Visibility.Visible;
                 CoverPlaceholder.Visibility = Visibility.Collapsed;
             }
-            catch
+            catch (Exception ex)
             {
                 ResetCover();
+                AddLocalRow("WARNING", "app", "обложка не загрузилась: " + ex.Message);
             }
         }
 

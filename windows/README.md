@@ -19,7 +19,18 @@ dotnet build -c Release
 # → bin/Release/net48/MusicControl.exe
 ```
 
-Получится `bin/Release/net48/MusicControl.exe` — **около 110 КБ**.
+Получится `bin/Release/net48/MusicControl.exe` — **около 135 КБ**.
+
+Если у пользователя нет .NET Framework 4.8 (или Windows отвечает «Невозможно запустить это
+приложение на вашем ПК»), соберите самодостаточную версию — рантайм будет внутри:
+
+```bash
+dotnet publish -c Release -r win-x64 --self-contained true \
+  -p:FullBuild=true -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true \
+  -p:EnableCompressionInSingleFile=true -o publish-full
+# → publish-full/MusicControl.exe (~66 МБ)
+```
 
 Приложение собрано под **.NET Framework 4.8**: он входит в Windows 10 (начиная с 1903)
 и Windows 11, поэтому доустанавливать ничего не нужно. Собирается и на macOS/Linux:

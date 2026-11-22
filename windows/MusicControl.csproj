@@ -2,25 +2,28 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- .NET Framework 4.8 уже входит в Windows 10/11: exe весит сотни килобайт,
-         ничего доустанавливать не нужно -->
-    <TargetFramework>net48</TargetFramework>
+    <!-- Две сборки из одного кода:
+         · по умолчанию net48 — ~135 КБ, но нужен .NET Framework 4.8 (есть в обычной Windows 10/11);
+         · FullBuild=true → net8.0-windows self-contained — ~70 МБ, рантайм внутри,
+           запускается там, где .NET Framework нет или он отключён. -->
+    <TargetFramework Condition="'$(FullBuild)' != 'true'">net48</TargetFramework>
+    <TargetFramework Condition="'$(FullBuild)' == 'true'">net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <UseWPF>true</UseWPF>
     <LangVersion>10.0</LangVersion>
     <AssemblyName>MusicControl</AssemblyName>
     <RootNamespace>MusicControl</RootNamespace>
     <Nullable>disable</Nullable>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>Домашняя музыка — пульт Алисы</Product>
     <Company>Home SRV</Company>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(NoIcon)' != 'true'">app.ico</ApplicationIcon>
     <DebugType>none</DebugType>
-    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(FullBuild)' != 'true'">
     <!-- сборка net48 на macOS/Linux: референсные сборки Framework -->
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     <Reference Include="System.Net.Http" />

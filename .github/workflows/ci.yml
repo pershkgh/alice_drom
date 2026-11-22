@@ -75,8 +75,14 @@ jobs:
         working-directory: windows
         run: |
           dotnet build -c Release
+          dotnet publish -c Release -r win-x64 --self-contained true \
+            -p:FullBuild=true -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true -o dist-full
           mkdir -p dist
           cp bin/Release/net48/MusicControl.exe dist/
+          cp bin/Release/net48/MusicControl.exe.config dist/
+          cp dist-full/MusicControl.exe dist/MusicControl-full.exe
       - uses: actions/upload-artifact@v4
         with:
           name: MusicControl
@@ -113,4 +119,6 @@ jobs:
             Пошагово, со скриншотами — [docs/MANUAL.md](docs/MANUAL.md).
           files: |
             dist/MusicControl.exe
+            dist/MusicControl.exe.config
+            dist/MusicControl-full.exe
           generate_release_notes: true
