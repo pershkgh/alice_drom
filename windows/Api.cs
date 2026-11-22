@@ -166,7 +166,7 @@ namespace MusicControl
 
         private static string ReadBaseUrl()
         {
-            const string fallback = "http://ваш-сервер:8100";
+            const string fallback = "http://127.0.0.1:8100";
             try
             {
                 var path = Path.Combine(AppContext.BaseDirectory, "config.json");
