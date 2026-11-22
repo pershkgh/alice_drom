@@ -58,10 +58,11 @@ ask_secret() {  # без эха
 }
 
 ask_choice() {  # ask_choice "вопрос" "1" "варианты..."
+  # варианты печатаем в stderr: stdout уходит в $(...), иначе меню пропадёт
   local q="$1" def="$2"; shift 2
   local i=1
-  say ""
-  for opt in "$@"; do say "  ${BOLD}$i${RESET}) $opt"; i=$((i+1)); done
+  printf '\n' >&2
+  for opt in "$@"; do printf '  %s%s%s) %s\n' "$BOLD" "$i" "$RESET" "$opt" >&2; i=$((i+1)); done
   local answer; answer=$(ask "$q" "$def")
   printf '%s' "${answer:-$def}"
 }
