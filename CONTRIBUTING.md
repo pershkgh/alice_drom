@@ -48,6 +48,9 @@ cd windows && dotnet build -c Release     # нужен .NET SDK 8+; получи
 python3 -m compileall -q skill          # синтаксис Python
 bash -n install.sh doctor.sh            # синтаксис скриптов
 docker compose config > /dev/null        # валидность compose
+
+bash tests/install/run.sh                # установщик без Docker
+bash tests/sandbox/run.sh                # навык + мок Music Assistant
 ```
 
 То же самое гоняет CI — дождитесь зелёного прогона.

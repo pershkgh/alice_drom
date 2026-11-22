@@ -29,6 +29,16 @@ jobs:
           docker compose --profile ma --profile caddy config --quiet
           echo "compose ok"
 
+  sandbox:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - name: Сухой прогон установщика
+        run: bash tests/install/run.sh
+      - name: Навык с моком Music Assistant
+        run: bash tests/sandbox/run.sh
+
   image:
     runs-on: ubuntu-latest
     needs: check
