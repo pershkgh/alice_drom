@@ -182,6 +182,8 @@ MA_URL=$MA_URL
 MA_TOKEN=$MA_TOKEN
 PLAYER_NAME=$PLAYER_NAME
 SKILL_NAME=$SKILL_NAME
+# user_id владельца: впишите после публикации навыка (см. docs/MANUAL.md, раздел 6.0)
+OWNER_USER_ID=
 API_TOKEN=$API_TOKEN
 TZ=${TZ:-Europe/Moscow}
 LOG_LEVEL=INFO

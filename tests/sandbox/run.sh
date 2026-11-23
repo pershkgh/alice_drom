@@ -58,6 +58,7 @@ docker run -d --name alice-sandbox \
   -e "MA_TOKEN=sandbox-ma-token" \
   -e "API_TOKEN=$TOKEN" \
   -e "SKILL_NAME=$NAME" \
+  -e "OWNER_USER_ID=owner-777" \
   -e "TZ=Europe/Moscow" \
   -e "LOG_LEVEL=INFO" \
   "$IMAGE" > /dev/null
@@ -128,7 +129,20 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -H "X-Api-Token: $TOKEN" "ht
 [ "$code" = "200" ] && ok "обложка проксируется (/api/cover → 200)" || bad "обложка: код $code"
 D=$(api /api/diagnostics)
 echo "$D" | grep -q '"checks"' && ok "диагностика вернула список проверок" || bad "диагностика: $D"
+echo "$D" | grep -q '"id":"access"' && ok "диагностика проверяет доступ" || bad "нет проверки доступа"
 echo "$D" | grep -q '"failed":0' && ok "диагностика: ошибок нет" || note "диагностика не полностью зелёная (ожидаемо: нет колонки/потока)"
+
+# ── 7.5 доступ по пользователю ───────────────────────────────────────────────
+say "7.5 Доступ: только владелец"
+webhook() { # <user_id> <фраза>
+  curl -s -m 10 -H "Content-Type: application/json" \
+    -d "{\"session\":{\"user\":{\"user_id\":\"$1\"}},\"request\":{\"command\":\"$2\"}}" \
+    "http://127.0.0.1:$SKILL_PORT/"
+}
+R=$(webhook "stranger-1" "пауза")
+echo "$R" | grep -q "другого пользователя" && ok "чужой пользователь получает отказ" || bad "чужого пустили: $R"
+R=$(webhook "owner-777" "что играет")
+echo "$R" | grep -q "Evanescence" && ok "владелец работает как обычно" || bad "владельцу не ответили: $R"
 
 # ── 8. поведение без MA ──────────────────────────────────────────────────────
 say "8. MA упал — навык не должен висеть"

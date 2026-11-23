@@ -37,6 +37,10 @@ log = logging.getLogger("alice")
 MA_URL = os.getenv("MA_URL", "http://127.0.0.1:8095")
 MA_TOKEN = os.getenv("MA_TOKEN", "")
 SKILL_NAME = (os.getenv("SKILL_NAME") or "Домашняя музыка").strip()  # как вы назвали навык в Диалогах
+# Опубликованный навык может запустить любой пользователь Алисы — и управлять ВАШЕЙ
+# колонкой. Поэтому по умолчанию разрешаем только владельца: его user_id Яндекс
+# кладёт в session.user.user_id. Пусто = разрешены все (для черновика это нормально).
+OWNER_USER_ID = (os.getenv("OWNER_USER_ID") or "").strip()
 PLAYER_NAME = os.getenv("PLAYER_NAME", "")  # id или имя; пусто = единственная доступная станция
 API_TOKEN = (os.getenv("API_TOKEN") or "").strip()  # пусто = API открыт (только своя сеть!)
 STARTED_AT = time.time()
@@ -634,6 +638,17 @@ async def webhook(request: Request) -> JSONResponse:
     req = body.get("request") or {}
     command = req.get("command") or req.get("original_utterance") or ""
 
+    # Кто говорит. Опубликованный навык доступен всем, поэтому чужого не слушаем.
+    user_id = ((session.get("user") or {}).get("user_id") or "")
+    if user_id:
+        log.info("user_id=%s", user_id)  # по этой строке владелец узнаёт свой id
+    if OWNER_USER_ID and user_id and user_id != OWNER_USER_ID:
+        log.warning("чужой пользователь %s — отказываю", user_id)
+        event("WARNING", f"отказ: чужой пользователь {user_id}", source="колонка")
+        result = reply("Этот навык настроен на другого пользователя. Доступ закрыт.")
+        result["session"] = session
+        return JSONResponse(result)
+
     # ВАЖНО: команду разбираем и в новой сессии. Когда говорят
     # «Алиса, запусти навык домашняя музыка, включи избранное», Яндекс
     # открывает сессию (session.new) и кладёт в command уже саму команду —
@@ -877,6 +892,14 @@ async def api_diagnostics(request: Request) -> dict[str, Any]:
     add("skill", "Навык", "ok",
         f"работает {_uptime_human()}, API-токен {'включён' if API_TOKEN else 'выключен'}",
         "" if API_TOKEN else "API открыт для всей домашней сети — включи токен")
+
+    if OWNER_USER_ID:
+        add("access", "Доступ", "ok", "только для вашего аккаунта", "")
+    else:
+        add("access", "Доступ", "warn",
+            "навык слушает любого пользователя",
+            "если навык опубликован — задайте OWNER_USER_ID (см. .env.example), "
+            "иначе управлять колонкой сможет любой, кто знает имя навыка")
 
     players: list[dict[str, Any]] | None = None
     started = time.monotonic()
