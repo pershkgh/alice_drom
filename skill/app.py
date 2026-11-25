@@ -48,7 +48,11 @@ FAVORITES_LIMIT = int(os.getenv("FAVORITES_LIMIT", "200"))
 SILENCE_MS = int(os.getenv("SILENCE_MS", "125"))
 # Держать ли сессию открытой после ответа. Открытая сессия = Алиса слушает
 # следующую команду, но колонка всё это время приглушает музыку.
-SESSION_HOLD = os.getenv("SESSION_HOLD", "1") not in {"0", "false", "no"}  # пауза вместо подтверждения; короче — меньше «приседание» музыки
+SESSION_HOLD = os.getenv("SESSION_HOLD", "1") not in {"0", "false", "no"}
+# Держать громкость статичной: после «далее»/«назад»/«паузы» станция иногда
+# возвращает себе громкость, отличную от выставленной (её же озвучка названия
+# трека громче тихого уровня). Навык через секунду возвращает последнюю заданную.
+VOLUME_LOCK = os.getenv("VOLUME_LOCK", "1") not in {"0", "false", "no"}  # пауза вместо подтверждения; короче — меньше «приседание» музыки
 
 
 # --- журнал событий для приложения -----------------------------------------
@@ -170,6 +174,23 @@ async def play_uri_after_reply(player_id: str, queue_id: str, uri: str,
         except Exception as exc:  # noqa: BLE001 — фон
             event("WARNING", f"включение не удалось (попытка {attempt}): {exc}")
             await asyncio.sleep(1.0)
+
+
+async def relock_volume_after_reply(player_id: str, level: int | None) -> None:
+    """Вернуть громкость, которую пользователь задал последней.
+
+    Станция на низкой громкости (1–3) после собственной озвучки названия трека
+    может «прибавить» — в MA при этом ничего не меняется, поэтому чинить надо
+    здесь: через паузу (Алиса уже договорила) выставляем прежний уровень.
+    """
+    if not VOLUME_LOCK or level is None:
+        return
+    try:
+        await asyncio.sleep(1.2)
+        await ma.volume_set(player_id, max(0, min(100, level * 10)))
+        log.info("громкость возвращена к %s/10", level)
+    except Exception as exc:  # noqa: BLE001 — фон не должен падать молча
+        log.warning("не удалось вернуть громкость: %s", exc)
 
 
 async def start_index_after_reply(player_id: str, queue_id: str, index: int) -> None:
@@ -435,11 +456,13 @@ async def handle(command: str) -> dict[str, Any]:
             # после вызова возвращало ПРЕДЫДУЩИЙ трек («дальше» называла текущий).
             item = await ma.queue_item(queue_id, target)
             asyncio.create_task(start_index_after_reply(player_id, queue_id, target))
+            asyncio.create_task(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
             return ask(f"{fmt_item(item, with_album=False)}.") if item else ask("Готово.")
 
         if parsed.intent is Intent.PAUSE:
             await ma.pause(player_id)
             pos_pause(queue_id)
+            asyncio.create_task(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
             return ask("Тихо.")
 
         if parsed.intent is Intent.STOP:
@@ -450,6 +473,7 @@ async def handle(command: str) -> dict[str, Any]:
         if parsed.intent is Intent.RESUME:
             await ma.play(player_id)
             pos_set(queue_id, pos_get(queue_id))
+            asyncio.create_task(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
             await asyncio.sleep(0.4)
             item = await current_item(player_id)
             return ask(f"{fmt_item(item, with_album=False)}.") if item else ask("Играю.")

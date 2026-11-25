@@ -188,6 +188,7 @@ API_TOKEN=$API_TOKEN
 TZ=${TZ:-Europe/Moscow}
 LOG_LEVEL=INFO
 SESSION_HOLD=1
+VOLUME_LOCK=1
 ENV
 chmod 600 .env
 ok ".env записан (права 600)"
