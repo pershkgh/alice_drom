@@ -38,6 +38,8 @@ cat > "$WORK/shim/curl" <<'SH'
 echo "curl $*" >> "$SHIM_LOG"
 case "$*" in
   *"/health"*)     echo '{"ok":true}' ;;
+  *"/api"*|*"/api "*)
+    echo '{"result":[{"player_id":"ys_TEST","display_name":"Станция (тест)","provider":"yandex_station"}]}' ;;
   *"/api/status"*) echo '{"ok":true,"station":{"available":true,"volume_1_10":4},"title":"Тестовый трек"}' ;;
   *) echo '' ;;
 esac
@@ -74,7 +76,7 @@ CODE=$?
 [ "$CODE" = "0" ] && ok "скрипт завершился с кодом 0" || bad "код выхода $CODE"
 
 say "2. Что записано в .env"
-for key in DOMAIN EMAIL MA_URL MA_TOKEN PLAYER_NAME SKILL_NAME API_TOKEN; do
+for key in DOMAIN EMAIL MA_URL MA_TOKEN PLAYER_NAME SKILL_NAME API_TOKEN WEBHOOK_SECRET; do
   if grep -q "^$key=" "$WORK/.env" 2>/dev/null; then
     ok "$key=$(grep "^$key=" "$WORK/.env" | cut -d= -f2-)"
   else

@@ -59,6 +59,7 @@ docker run -d --name alice-sandbox \
   -e "API_TOKEN=$TOKEN" \
   -e "SKILL_NAME=$NAME" \
   -e "OWNER_USER_ID=owner-777" \
+  -e "WEBHOOK_SECRET=s3cret-test" \
   -e "TZ=Europe/Moscow" \
   -e "LOG_LEVEL=INFO" \
   "$IMAGE" > /dev/null
@@ -80,6 +81,8 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:$SKILL_PORT
 [ "$code" = "401" ] && ok "без токена /api/status → 401" || bad "без токена вернулось $code, ждали 401"
 code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:$SKILL_PORT/health")
 [ "$code" = "200" ] && ok "/health открыт (200)" || bad "/health вернул $code"
+H=$(curl -s -m 5 "http://127.0.0.1:$SKILL_PORT/health")
+echo "$H" | grep -q '"players"' && bad "/health отдаёт список плееров наружу" || ok "/health без подробностей"
 
 # ── 5. состояние ─────────────────────────────────────────────────────────────
 say "5. /api/status"
@@ -134,14 +137,22 @@ echo "$D" | grep -q '"failed":0' && ok "диагностика: ошибок н�
 
 # ── 7.5 доступ по пользователю ───────────────────────────────────────────────
 say "7.5 Доступ: только владелец"
-webhook() { # <user_id> <фраза>
+webhook() { # <путь> <user_id> <фраза>
   curl -s -m 10 -H "Content-Type: application/json" \
-    -d "{\"session\":{\"user\":{\"user_id\":\"$1\"}},\"request\":{\"command\":\"$2\"}}" \
-    "http://127.0.0.1:$SKILL_PORT/"
+    -d "{\"session\":{\"user\":{\"user_id\":\"$2\"}},\"request\":{\"command\":\"$3\"}}" \
+    "http://127.0.0.1:$SKILL_PORT$1"
 }
-R=$(webhook "stranger-1" "пауза")
+code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST -H "Content-Type: application/json" \
+  -d '{"session":{"user":{"user_id":"owner-777"}},"request":{"command":"что играет"}}' \
+  "http://127.0.0.1:$SKILL_PORT/")
+[ "$code" = "404" ] && ok "старый путь / без секрета закрыт (404)" || bad "/ отдал $code, ждали 404"
+code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST -H "Content-Type: application/json" \
+  -d '{"session":{"user":{"user_id":"owner-777"}},"request":{"command":"что играет"}}' \
+  "http://127.0.0.1:$SKILL_PORT/wrong-secret")
+[ "$code" = "404" ] && ok "неверный секрет → 404" || bad "неверный секрет отдал $code"
+R=$(webhook "/s3cret-test" "stranger-1" "пауза")
 echo "$R" | grep -q "другого пользователя" && ok "чужой пользователь получает отказ" || bad "чужого пустили: $R"
-R=$(webhook "owner-777" "что играет")
+R=$(webhook "/s3cret-test" "owner-777" "что играет")
 echo "$R" | grep -q "Evanescence" && ok "владелец работает как обычно" || bad "владельцу не ответили: $R"
 
 # ── 8. поведение без MA ──────────────────────────────────────────────────────

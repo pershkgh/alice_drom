@@ -36,11 +36,17 @@ log = logging.getLogger("alice")
 
 MA_URL = os.getenv("MA_URL", "http://127.0.0.1:8095")
 MA_TOKEN = os.getenv("MA_TOKEN", "")
+NAVIDROME_URL = (os.getenv("NAVIDROME_URL") or "").strip()
 SKILL_NAME = (os.getenv("SKILL_NAME") or "Домашняя музыка").strip()  # как вы назвали навык в Диалогах
 # Опубликованный навык может запустить любой пользователь Алисы — и управлять ВАШЕЙ
 # колонкой. Поэтому по умолчанию разрешаем только владельца: его user_id Яндекс
 # кладёт в session.user.user_id. Пусто = разрешены все (для черновика это нормально).
 OWNER_USER_ID = (os.getenv("OWNER_USER_ID") or "").strip()
+# Секретный сегмент URL: Яндекс не подписывает запросы, поэтому единственная
+# защита вебхука — непубличный адрес. Ставится инсталлером: /alice/<secret>.
+WEBHOOK_SECRET = (os.getenv("WEBHOOK_SECRET") or "").strip()
+# Опционально: id навыка из Диалогов (доп. проверка тела запроса).
+SKILL_ID = (os.getenv("SKILL_ID") or "").strip()
 PLAYER_NAME = os.getenv("PLAYER_NAME", "")  # id или имя; пусто = единственная доступная станция
 API_TOKEN = (os.getenv("API_TOKEN") or "").strip()  # пусто = API открыт (только своя сеть!)
 STARTED_AT = time.time()
@@ -193,10 +199,16 @@ async def relock_volume_after_reply(player_id: str, level: int | None) -> None:
         log.warning("не удалось вернуть громкость: %s", exc)
 
 
-async def start_index_after_reply(player_id: str, queue_id: str, index: int) -> None:
+async def start_index_after_reply(player_id: str, queue_id: str, index: int,
+                                  generation: int | None = None) -> None:
     """Включить нужный элемент очереди сразу и один раз проверить звук потом."""
     try:
+        if generation is not None and not nav_generation_ok(player_id, generation):
+            log.info("навигация устарела (index=%s) — пропускаю", index)
+            return
         await ma.play_index(queue_id, index, timeout=20)
+        if generation is not None and not nav_generation_ok(player_id, generation):
+            return
         # Сразу возвращаем трек в начало: поток MA продолжает «тикать» с прошлой
         # позиции, и станция, подключившись, попадала в середину песни.
         await ma.seek(queue_id, 0, timeout=20)
@@ -365,6 +377,28 @@ def plural(n: int, one: str, few: str, many: str) -> str:
     return many
 
 
+_BG_TASKS: set[asyncio.Task] = set()  # держим ссылки: иначе GC может убить задачу
+_NAV_GEN: dict[str, int] = {}  # поколение навигации: старые задачи не должны перебивать новые
+
+
+def spawn(coro) -> None:
+    """Запустить фоновую задачу и не потерять ссылку на неё."""
+    task = asyncio.create_task(coro)
+    _BG_TASKS.add(task)
+    task.add_done_callback(_BG_TASKS.discard)
+
+
+def next_nav_generation(player_id: str) -> int:
+    """Новая навигационная команда отменяет предыдущую (защита от «далее-далее»)."""
+    generation = _NAV_GEN.get(player_id, 0) + 1
+    _NAV_GEN[player_id] = generation
+    return generation
+
+
+def nav_generation_ok(player_id: str, generation: int) -> bool:
+    return _NAV_GEN.get(player_id, generation) == generation
+
+
 _VOL: dict[str, int] = {}  # player_id -> последний выставленный уровень 0..10
 _POS: dict[str, tuple[float, float]] = {}  # queue_id -> (секунда, monotonic-метка; 0 = на паузе)
 
@@ -455,14 +489,15 @@ async def handle(command: str) -> dict[str, Any]:
             # play_index: MA применяет переключение не мгновенно, и чтение сразу
             # после вызова возвращало ПРЕДЫДУЩИЙ трек («дальше» называла текущий).
             item = await ma.queue_item(queue_id, target)
-            asyncio.create_task(start_index_after_reply(player_id, queue_id, target))
-            asyncio.create_task(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
+            generation = next_nav_generation(player_id)
+            spawn(start_index_after_reply(player_id, queue_id, target, generation))
+            spawn(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
             return ask(f"{fmt_item(item, with_album=False)}.") if item else ask("Готово.")
 
         if parsed.intent is Intent.PAUSE:
             await ma.pause(player_id)
             pos_pause(queue_id)
-            asyncio.create_task(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
+            spawn(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
             return ask("Тихо.")
 
         if parsed.intent is Intent.STOP:
@@ -473,7 +508,7 @@ async def handle(command: str) -> dict[str, Any]:
         if parsed.intent is Intent.RESUME:
             await ma.play(player_id)
             pos_set(queue_id, pos_get(queue_id))
-            asyncio.create_task(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
+            spawn(relock_volume_after_reply(player_id, _VOL.get(player_id, volume_level(player))))
             await asyncio.sleep(0.4)
             item = await current_item(player_id)
             return ask(f"{fmt_item(item, with_album=False)}.") if item else ask("Играю.")
@@ -514,7 +549,7 @@ async def handle(command: str) -> dict[str, Any]:
             current = current if isinstance(current, int) else 0
             # Перезапуск — в фоне: не тратим бюджет ответа и не спорим с озвучкой
             # нашего же ответа (станция в этот момент проигрывает TTS Алисы).
-            asyncio.create_task(shuffle_playback(player_id, queue_id, total, current))
+            spawn(shuffle_playback(player_id, queue_id, total, current))
             return ask(
                 f"Перемешала {total} {plural(total, 'трек', 'трека', 'треков')} и включаю."
             )
@@ -561,7 +596,7 @@ async def handle(command: str) -> dict[str, Any]:
             if similar:
                 random.shuffle(similar)
                 uris = [t["uri"] for t in similar[:25]]
-                asyncio.create_task(start_queue_after_reply(player_id, queue_id, uris))
+                spawn(start_queue_after_reply(player_id, queue_id, uris))
                 await ma.autoplay(queue_id, True)
                 return ask(f"Включаю похожее: {len(uris)} {plural(len(uris), 'трек', 'трека', 'треков')}.")
             if not queue_size(queue):
@@ -579,7 +614,7 @@ async def handle(command: str) -> dict[str, Any]:
             uris = [t["uri"] for t in tracks[:100]]
             queue = await ma.queue(player_id)
             queue_id = queue.get("queue_id", player_id)
-            asyncio.create_task(start_queue_after_reply(player_id, queue_id, uris))
+            spawn(start_queue_after_reply(player_id, queue_id, uris))
             return ask(f"Включаю избранное: {len(uris)} {plural(len(uris), 'трек', 'трека', 'треков')}, вперемешку.")
 
         if parsed.intent is Intent.LIKE:
@@ -605,7 +640,7 @@ async def handle(command: str) -> dict[str, Any]:
             # иногда не отвечает вовремя (PlayerCommandFailed: timeout), и если
             # ждать его в ответе, Алиса слышит «музыкальный сервер не ответил»,
             # хотя трек потом всё равно включается.
-            asyncio.create_task(play_uri_after_reply(player_id, queue_id, uri, index, total))
+            spawn(play_uri_after_reply(player_id, queue_id, uri, index, total))
             return ask(f"Включаю {media.get('name', parsed.query)}.")
 
     except MAError as exc:
@@ -621,7 +656,7 @@ async def handle(command: str) -> dict[str, Any]:
 def _token_ok(request: Request) -> bool:
     """Токен для /api/*: заголовок X-Api-Token или ?token= (для <img>)."""
     if not API_TOKEN:
-        return True
+        return False  # токен не задан → API выключен (не «открыт»!)
     given = (request.headers.get("x-api-token") or request.query_params.get("token") or "").strip()
     return bool(given) and hmac.compare_digest(given, API_TOKEN)
 
@@ -631,6 +666,20 @@ def _deny() -> JSONResponse:
         {"ok": False, "error": "нет доступа: нужен X-Api-Token (см. config.json на ПК)"},
         status_code=401,
     )
+
+
+def _api_guard(request: Request) -> JSONResponse | None:
+    """Проверка доступа к /api/*.
+
+    Пустой API_TOKEN означает «API выключен», а не «API без пароля»: иначе при
+    установке без токена весь пульт открывался наружу через /alice/api/*.
+    """
+    if not API_TOKEN:
+        return JSONResponse(
+            {"ok": False, "error": "API_TOKEN не задан на сервере — API выключен"},
+            status_code=503,
+        )
+    return None if _token_ok(request) else _deny()
 
 
 def _port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.6) -> bool:
@@ -653,14 +702,35 @@ def _uptime_human() -> str:
     return f"{minutes} мин"
 
 
-@app.post("/")
-async def webhook(request: Request) -> JSONResponse:
+def _secret_ok(path_token: str) -> bool:
+    """Совпадает ли сегмент URL с секретом из .env."""
+    if not WEBHOOK_SECRET:
+        return True  # секрет не задан (старая установка) — пускаем, но предупреждаем при старте
+    return hmac.compare_digest(path_token or "", WEBHOOK_SECRET)
+
+
+def _not_found() -> JSONResponse:
+    # 404, а не 403: не подсказываем, что путь существует
+    return JSONResponse({"detail": "Not Found"}, status_code=404)
+
+
+async def _run_webhook(request: Request) -> JSONResponse:
     started = time.monotonic()
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return _not_found()
 
     session = body.get("session") or {}
     req = body.get("request") or {}
     command = req.get("command") or req.get("original_utterance") or ""
+
+    # Если задан SKILL_ID — тело должно прийти именно от нашего навыка
+    # (доп. проверка поверх секретного пути; Яндекс кладёт id в session.skill_id)
+    skill_id = (session.get("skill_id") or "")
+    if SKILL_ID and skill_id and skill_id != SKILL_ID:
+        log.warning("вебхук: чужой skill_id %s", skill_id)
+        return _not_found()
 
     # Кто говорит. Опубликованный навык доступен всем, поэтому чужого не слушаем.
     user_id = ((session.get("user") or {}).get("user_id") or "")
@@ -692,11 +762,46 @@ async def webhook(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
+async def _webhook_entry(request: Request, path_token: str = "") -> JSONResponse:
+    """Единая точка входа: сначала секрет пути, потом (если задан) skill_id."""
+    if not _secret_ok(path_token):
+        log.warning("вебхук: неверный секрет в пути (%r)", path_token[:8])
+        return _not_found()
+    result = await _run_webhook(request)
+    return result
+
+
+@app.post("/")
+async def webhook_root(request: Request) -> JSONResponse:
+    # Старый адрес без секрета: работает только если WEBHOOK_SECRET не задан.
+    if WEBHOOK_SECRET:
+        return _not_found()
+    return await _run_webhook(request)
+
+
+@app.post("/{path_token}")
+async def webhook_secret(request: Request, path_token: str) -> JSONResponse:
+    return await _webhook_entry(request, path_token)
+
+
+@app.post("/alice")
+async def webhook_alice(request: Request) -> JSONResponse:
+    if WEBHOOK_SECRET:
+        return _not_found()
+    return await _run_webhook(request)
+
+
+@app.post("/alice/{path_token}")
+async def webhook_alice_secret(request: Request, path_token: str) -> JSONResponse:
+    return await _webhook_entry(request, path_token)
+
+
 @app.get("/api/status")
 async def api_status(request: Request) -> dict[str, Any]:
     """Состояние сервера, колонки и очереди — для строки статуса в приложении."""
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
     started = time.monotonic()
     try:
         player = await ma.player(PLAYER_NAME)
@@ -750,8 +855,9 @@ async def api_command(request: Request) -> dict[str, Any]:
         payload = await request.json()
     except Exception:  # noqa: BLE001
         payload = {}
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
     text = str(payload.get("text") or "").strip()
     source = _log_source(request.headers)
     if not text:
@@ -774,8 +880,9 @@ async def api_command(request: Request) -> dict[str, Any]:
 @app.get("/api/events")
 async def api_events(request: Request, since: int = 0, limit: int = 300) -> dict[str, Any]:
     """Журнал: всё, что навык делал — и голосом, и из приложения."""
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
     items = EVENTS.snapshot(since)[-limit:]
     return {"events": items, "last": EVENTS.seq}
 
@@ -823,8 +930,9 @@ async def _player_and_queue() -> tuple[str, dict[str, Any]]:
 @app.get("/api/queue")
 async def api_queue(request: Request, offset: int = 0, limit: int = 60, near: int = -1) -> dict[str, Any]:
     """Что играет дальше: элементы очереди с названиями и обложками."""
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
     started = time.monotonic()
     try:
         player_id, queue = await _player_and_queue()
@@ -865,8 +973,9 @@ async def api_queue(request: Request, offset: int = 0, limit: int = 60, near: in
 @app.get("/api/cover")
 async def api_cover(request: Request, id: str = "") -> Any:
     """Прокси обложки: приложение не должно знать токен Music Assistant."""
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
     if not id:
         return JSONResponse({"ok": False, "error": "нет id обложки"}, status_code=400)
     try:
@@ -879,8 +988,9 @@ async def api_cover(request: Request, id: str = "") -> Any:
 @app.post("/api/play-index")
 async def api_play_index(request: Request) -> dict[str, Any]:
     """Включить конкретный элемент очереди (клик по треку в списке)."""
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
     try:
         payload = await request.json()
     except Exception:  # noqa: BLE001
@@ -895,7 +1005,7 @@ async def api_play_index(request: Request) -> dict[str, Any]:
     try:
         player_id, queue = await _player_and_queue()
         queue_id = queue.get("queue_id") or player_id
-        asyncio.create_task(start_index_after_reply(player_id, queue_id, index))
+        spawn(start_index_after_reply(player_id, queue_id, index))
         event("INFO", f"включаю трек №{index + 1} из очереди", source=source)
         return {"ok": True, "index": index}
     except Exception as exc:  # noqa: BLE001
@@ -905,8 +1015,9 @@ async def api_play_index(request: Request) -> dict[str, Any]:
 @app.get("/api/diagnostics")
 async def api_diagnostics(request: Request) -> dict[str, Any]:
     """Проверка всей цепочки: навык → MA → колонка → поток → Navidrome."""
-    if not _token_ok(request):
-        return _deny()
+    guard = _api_guard(request)
+    if guard is not None:
+        return guard
 
     checks: list[dict[str, Any]] = []
 
@@ -916,6 +1027,13 @@ async def api_diagnostics(request: Request) -> dict[str, Any]:
     add("skill", "Навык", "ok",
         f"работает {_uptime_human()}, API-токен {'включён' if API_TOKEN else 'выключен'}",
         "" if API_TOKEN else "API открыт для всей домашней сети — включи токен")
+
+    if WEBHOOK_SECRET:
+        add("webhook", "Вебхук", "ok", "секретный путь задан: посторонний URL не выполнится", "")
+    else:
+        add("webhook", "Вебхук", "fail",
+            "секрет не задан — навык выполнит команду от кого угодно, кто узнал адрес",
+            "задайте WEBHOOK_SECRET в .env и укажите новый адрес в Яндекс.Диалогах")
 
     if OWNER_USER_ID:
         add("access", "Доступ", "ok", "только для вашего аккаунта", "")
@@ -959,15 +1077,6 @@ async def api_diagnostics(request: Request) -> dict[str, Any]:
                 f"{station.get('display_name') or station.get('player_id')}: {state}, громкость {vol}%",
                 "" if available else "колонка офлайн: включи её и подожди ~30 секунд")
 
-    glagol = _port_open(1961)
-    station_state = str((station or {}).get("state") or "")
-    if glagol:
-        add("glagol", "Сокет станции (1961)", "ok", "соединение с колонкой есть")
-    elif station_state in ("playing", "paused"):
-        add("glagol", "Сокет станции (1961)", "warn", "соединения нет, хотя колонка активна",
-            "команды могут не дойти — перезапусти провайдер в Music Assistant")
-    else:
-        add("glagol", "Сокет станции (1961)", "ok", "колонка спит — соединения и нет")
 
     stream = stream_alive()
     playing = str((station or {}).get("state") or "") == "playing"
@@ -980,10 +1089,19 @@ async def api_diagnostics(request: Request) -> dict[str, Any]:
     else:
         add("stream", "Поток на колонку (8097)", "ok", "соединения нет (сейчас и не должно быть)")
 
-    navidrome = _port_open(4533)
-    add("navidrome", "Navidrome (4533)", "ok" if navidrome else "fail",
-        "библиотека отвечает" if navidrome else "порт закрыт",
-        "" if navidrome else "проверь контейнер navidrome на ваш-сервер")
+    # Navidrome может жить на другом хосте (NAS) — тогда локальный порт ничего
+    # не значит. Проверяем только если адрес задан явно: NAVIDROME_URL.
+    if NAVIDROME_URL:
+        host, _, port_s = NAVIDROME_URL.split("//", 1)[-1].partition(":")
+        port = int(port_s.split("/")[0] or 80) if port_s else 80
+        reachable = _port_open(port, host=host)
+        add("navidrome", "Navidrome", "ok" if reachable else "fail",
+            f"{NAVIDROME_URL}: библиотека отвечает" if reachable else f"{NAVIDROME_URL}: нет соединения",
+            "" if reachable else "проверь, что Navidrome запущен и адрес верный")
+    else:
+        add("navidrome", "Navidrome", "skip",
+            "адрес не задан — проверять нечего",
+            "укажите NAVIDROME_URL в .env (например https://music.example.com), чтобы проверять библиотеку")
 
     try:
         player_id, queue = await _player_and_queue()
@@ -1012,22 +1130,16 @@ async def api_diagnostics(request: Request) -> dict[str, Any]:
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
+    # Наружу этот адрес открыт (по нему ждёт инсталлер), поэтому без подробностей:
+    # список колонок и их имена — не то, что стоит показывать интернету.
     try:
-        players = await ma.cmd("players/all")
-        return {"ok": True, "players": [p.get("display_name") for p in players or []]}
+        await ma.cmd("players/all")
+        return {"ok": True}
     except MAError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
         log.exception("health failed")
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-
-# ── алиасы для обратного прокси ──────────────────────────────────────────────
-# Часть прокси не срезает префикс, а прокидывает как есть. Тогда Яндекс зовёт
-# /alice и /alice/health — отвечаем тем же кодом, что и на /.
-@app.post("/alice")
-async def webhook_alice(request: Request) -> JSONResponse:
-    return await webhook(request)
-
 
 @app.get("/alice/health")
 async def health_alice() -> dict[str, Any]:

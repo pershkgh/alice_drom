@@ -67,6 +67,11 @@ ask_choice() {  # ask_choice "вопрос" "1" "варианты..."
   printf '%s' "${answer:-$def}"
 }
 
+env_get() {  # env_get KEY — значение из существующего .env (пусто, если нет)
+  [ -f .env ] || return 0
+  sed -n "s/^$1=//p" .env | head -1
+}
+
 gen_token() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 24
@@ -134,20 +139,55 @@ PLAYER_NAME="${PLAYER_NAME:-}"
 MA_PROFILE=""
 
 if [ "$MA_MODE" = "1" ]; then
-  MA_URL="${MA_URL:-}"
+  MA_URL="${MA_URL:-$(env_get MA_URL)}"
   [ -z "$MA_URL" ] && MA_URL=$(ask "Адрес MA" "http://127.0.0.1:8095")
-  if [ -z "$MA_TOKEN" ]; then
-    say "${DIM}Токен: Music Assistant → Настройки → Профиль → «Долгоживущий токен» → Создать${RESET}"
-    MA_TOKEN=$(ask_secret "Токен MA")
-  fi
-  [ -n "$MA_TOKEN" ] || die "без токена MA навык не сможет управлять музыкой"
-  say "${DIM}Проверяю MA…${RESET}"
-  if curl -fsS -m 10 -H "Authorization: Bearer $MA_TOKEN" \
-       "${MA_URL%/}/api" -H 'Content-Type: application/json' \
-       -d '{"message_id":"install","command":"players/all","args":{}}' >/dev/null 2>&1; then
-    ok "MA отвечает"
+  MA_TOKEN="${MA_TOKEN:-$(env_get MA_TOKEN)}"
+
+  # токен проверяем по-настоящему: 401 — переспросим, а не «продолжим на авось»
+  MA_JSON=""
+  for attempt in 1 2 3; do
+    if [ -z "$MA_TOKEN" ]; then
+      say "${DIM}Где взять: Music Assistant → Настройки → Профиль → «Долгоживущий токен» → Создать${RESET}"
+      say "${DIM}Если MA только что установлен: откройте ${MA_URL%/} в браузере и создайте администратора.${RESET}"
+      MA_TOKEN=$(ask_secret "Токен MA")
+    fi
+    [ -n "$MA_TOKEN" ] || die "без токена MA навык не сможет управлять музыкой"
+    say "${DIM}Проверяю MA…${RESET}"
+    MA_JSON=$(curl -s -m 10 -H "Authorization: Bearer $MA_TOKEN" \
+        "${MA_URL%/}/api" -H 'Content-Type: application/json' \
+        -d '{"message_id":"install","command":"players/all","args":{}}' 2>/dev/null || true)
+    case "$MA_JSON" in
+      *'"result"'*)
+        ok "MA отвечает"
+        break ;;
+      *uthentication*|*401*)
+        warn "MA не принял токен (нужна авторизация)"
+        MA_TOKEN=""
+        [ "$attempt" = "3" ] && die "трижды неверный токен. Проверьте его в Music Assistant → Профиль → Долгоживущий токен"
+        say "${DIM}Попробуем ещё раз.${RESET}" ;;
+      *)
+        warn "MA не ответил по адресу ${MA_URL%/}"
+        [ "$attempt" = "3" ] && die "MA недоступен: проверьте адрес, порт 8095 и что контейнер запущен (docker ps)"
+        MA_URL=$(ask "Адрес MA" "${MA_URL%/}") ;;
+    esac
+  done
+
+  # провайдер станции: без него MA играть не будет, и это стоит сказать сразу
+  if printf '%s' "$MA_JSON" | grep -qi "yandex"; then
+    ok "провайдер Яндекс.Станции в MA найден"
   else
-    warn "MA не ответил на проверку — продолжим, но проверьте адрес и токен"
+    warn "в MA нет плеера Яндекс.Станции — музыка играть не будет"
+    say "${DIM}Штатный провайдер на новых прошивках станции молчит; в комплекте есть рабочий.${RESET}"
+    if [ "$(ask_choice "Что делаем?" "1" \
+          "Поставить MA из комплекта (рекомендую)" \
+          "Нет, настрою провайдер сам в своём MA")" = "1" ]; then
+      MA_PROFILE="ma"
+      MA_URL="http://127.0.0.1:8095"
+      MA_TOKEN=""
+      ok "MA будет поднят из комплекта"
+    else
+      warn "оставляю ваш MA: без провайдера станции навык будет отвечать, но не играть"
+    fi
   fi
 else
   MA_URL="http://127.0.0.1:8095"
@@ -166,7 +206,13 @@ SKILL_NAME=$(ask "Как назовёте навык в Яндекс.Диало�
 say ""
 say "${BOLD}4. Записываю настройки${RESET}"
 
+API_TOKEN="${API_TOKEN:-$(env_get API_TOKEN)}"
 API_TOKEN="${API_TOKEN:-$(gen_token)}"
+
+# Секрет в пути вебхука: Яндекс не подписывает запросы, поэтому адрес должен быть
+# непубличным. Меняется только вручную (после смены надо обновить его в Диалогах).
+WEBHOOK_SECRET="${WEBHOOK_SECRET:-$(env_get WEBHOOK_SECRET)}"
+WEBHOOK_SECRET="${WEBHOOK_SECRET:-$(gen_token)}"
 
 if [ -f .env ] && [ "$ASSUME_YES" != "1" ]; then
   cp .env ".env.backup.$(date +%Y%m%d-%H%M%S)"
@@ -182,6 +228,9 @@ MA_URL=$MA_URL
 MA_TOKEN=$MA_TOKEN
 PLAYER_NAME=$PLAYER_NAME
 SKILL_NAME=$SKILL_NAME
+SKILL_ID=${SKILL_ID:-}
+WEBHOOK_SECRET=$WEBHOOK_SECRET
+NAVIDROME_URL=${NAVIDROME_URL:-}
 # user_id владельца: впишите после публикации навыка (см. docs/MANUAL.md, раздел 6.0)
 OWNER_USER_ID=
 API_TOKEN=$API_TOKEN
@@ -223,6 +272,47 @@ else
   warn "навык не ответил за 2 минуты. Логи: docker compose logs -f skill"
 fi
 
+# ── 5.5 токен для встроенного MA ─────────────────────────────────────────────
+if [ "$MA_PROFILE" = "ma" ]; then
+  say ""
+  say "${BOLD}5.5 Music Assistant: нужен токен${RESET}"
+  IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  say "${DIM}MA запущен: ${BLUE}http://${IP:-127.0.0.1}:8095${RESET}${DIM} — создайте там администратора.${RESET}"
+
+  MA_READY=0
+  for _ in $(seq 1 20); do
+    if curl -s -m 3 -o /dev/null "http://127.0.0.1:8095/"; then MA_READY=1; break; fi
+    sleep 3
+  done
+
+  if [ "$MA_READY" = "1" ]; then
+    say "${DIM}Затем: Настройки → Профиль → «Долгоживущий токен» → Создать → скопировать.${RESET}"
+    MA_TOKEN=$(ask_secret "Токен MA (Enter — пропустить, впишете позже сами)")
+    if [ -n "$MA_TOKEN" ]; then
+      # проверяем и только потом записываем
+      if curl -fsS -m 10 -H "Authorization: Bearer $MA_TOKEN" \
+           "http://127.0.0.1:8095/api" -H 'Content-Type: application/json' \
+           -d '{"message_id":"install","command":"players/all","args":{}}' >/dev/null 2>&1; then
+        if grep -q '^MA_TOKEN=' .env; then
+          sed -i "s|^MA_TOKEN=.*|MA_TOKEN=$MA_TOKEN|" .env
+        else
+          printf 'MA_TOKEN=%s\n' "$MA_TOKEN" >> .env
+        fi
+        docker compose --profile ma up -d --force-recreate >/dev/null 2>&1 || true
+        ok "токен сохранён, навык перезапущен"
+      else
+        warn "токен не подошёл — MA ответил отказом; впишите позже в .env (MA_TOKEN=…)"
+      fi
+    else
+      warn "без токена навык не сможет управлять музыкой"
+      say "  ${DIM}Позже: создайте токен в MA и выполните:${RESET}"
+      say "  ${DIM}echo 'MA_TOKEN=ваш_токен' >> .env && docker compose up -d --force-recreate${RESET}"
+    fi
+  else
+    warn "MA ещё не поднялся — токен впишете позже (MA_TOKEN=… в .env)"
+  fi
+fi
+
 # ── 6. что дальше ────────────────────────────────────────────────────────────
 say ""
 hr
@@ -232,10 +322,15 @@ say "  1. Откройте ${BLUE}https://dialogs.yandex.ru/developer${RESET}"
 say "  2. «Создать диалог» → ${BOLD}Навык для Алисы${RESET}"
 say "  3. В поле «Webhook URL» вставьте:"
 say ""
-say "       ${BOLD}${GREEN}https://$DOMAIN/alice${RESET}"
+say "       ${BOLD}${GREEN}https://$DOMAIN/alice/$WEBHOOK_SECRET${RESET}"
 say ""
-say "  4. Сохраните. Статус «Черновик» — достаточно, модерация не нужна."
-say "     Публичным навык делать НЕ надо: иначе вашей колонкой сможет управлять кто угодно."
+say "     ${DIM}Адрес со случайным секретом: Яндекс не подписывает запросы, поэтому${RESET}"
+say "     ${DIM}единственная защита — что путь знаете только вы. Никому его не показывайте.${RESET}"
+say ""
+say "  4. Сохраните и нажмите ${BOLD}«Опубликовать»${RESET}: в «Черновике» Яндекс не запускает"
+say "     воспроизведение — навык отвечает, но музыка молчит."
+say "     ${DIM}После публикации задайте OWNER_USER_ID (раздел 6.0 в docs/MANUAL.md),${RESET}"
+say "     ${DIM}иначе команды сможет отдавать любой пользователь Алисы.${RESET}"
 say "  5. Скажите колонке: «${BOLD}Алиса, запусти навык ${SKILL_NAME}${RESET}»"
 say ""
 hr

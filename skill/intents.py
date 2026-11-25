@@ -78,6 +78,11 @@ RE_LOUDER = re.compile(r"\b(громче|погромче|прибавь)\b")
 RE_QUIETER = re.compile(r"\b(тише|потише|убавь)\b")
 RE_LAUNCH = re.compile(r"^(запусти|открой|включи|стартуй)\s+(?:навык\s+)?(.+)$")
 RE_SKILL_PREFIX = re.compile(r"^(домашн\w*\s+музык\w*|домашн\w*|музык\w*)\s*")
+# «поставь на паузу», «сделай паузу», «дай паузу» — иначе общий PLAY уводит
+# такую фразу в поиск трека с названием «на паузу»
+RE_PAUSE_NATURAL = re.compile(
+    rf"^(?:поставь|сделай|включи|вруби|дай|режим)\s+(?:мне\s+)?(?:на\s+)?паузу\b"
+)
 RE_HELP = re.compile(r"\b(помощь|что ты умеешь|что умеешь|как пользоваться|навык)\b")
 
 HELP_TEXT = (
@@ -224,6 +229,10 @@ def parse(raw: str, skill_name: str = "") -> Parsed:
         return Parsed(Intent.PREV)
     if RE_RESUME.search(text):
         return Parsed(Intent.RESUME)
+
+    # пауза раньше общего «поставь/включи»: «поставь на паузу» — это пауза
+    if RE_PAUSE_NATURAL.search(text):
+        return Parsed(Intent.PAUSE)
 
     play = RE_PLAY.match(text)
     if play:

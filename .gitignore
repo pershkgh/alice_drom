@@ -8,6 +8,9 @@
 windows/bin/
 windows/obj/
 windows/publish/
+windows/publish-full/
+windows/dist/
+windows/dist-full/
 skill/__pycache__/
 *.pyc
 
