@@ -123,8 +123,8 @@ location / { return 404; }
 ## 4. Установка
 
 ```bash
-git clone https://github.com/<ваш-ник>/alice_drom.git
-cd alice_drom
+git clone https://github.com/<ваш-ник>/alice_drome.git
+cd alice_drome
 ./install.sh
 ```
 
@@ -248,7 +248,7 @@ docker compose up -d --force-recreate
 3. На сервере:
 
 ```bash
-cd alice_drom
+cd alice_drome
 echo 'MA_TOKEN=ваш_токен' >> .env
 docker compose up -d --force-recreate
 ./doctor.sh
@@ -342,7 +342,7 @@ docker compose up -d --force-recreate
 ### Обновление
 
 ```bash
-cd alice_drom
+cd alice_drome
 git pull
 docker compose up -d --build
 ./doctor.sh

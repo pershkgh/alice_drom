@@ -113,7 +113,7 @@ jobs:
             **Навык на сервере:**
             ```
             git clone ${{ github.server_url }}/${{ github.repository }}.git
-            cd alice_drom && ./install.sh
+            cd alice_drome && ./install.sh
             ```
 
             Пошагово, со скриншотами — [docs/MANUAL.md](docs/MANUAL.md).

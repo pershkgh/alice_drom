@@ -269,7 +269,12 @@ STREAM_PORT = int(os.getenv("STREAM_PORT", "8097"))
 
 
 def stream_alive(port: int | None = None) -> bool:
-    """Есть ли живое соединение колонки с потоком MA (читает, Send-Q мал)."""
+    """Есть ли соединение колонки с потоком MA.
+
+    Раньше требовали маленький Send-Q («колонка быстро читает»), но при потоковом
+    воспроизведении MA специально держит впереди буфер в сотни килобайт — проверка
+    давала ложное «соединения нет» при играющей музыке. Теперь достаточно ESTAB.
+    """
     port = port or STREAM_PORT
     for path in ("/proc/net/tcp", "/proc/net/tcp6"):
         try:
@@ -286,8 +291,7 @@ def stream_alive(port: int | None = None) -> bool:
                 send_q = int(f[4].split(":")[0], 16)
             except (IndexError, ValueError):
                 continue
-            if send_q < 300_000:                  # не зависший буфер
-                return True
+            return True
     return False
 
 
