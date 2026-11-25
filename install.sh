@@ -276,7 +276,7 @@ fi
 if [ "$MA_PROFILE" = "ma" ]; then
   say ""
   say "${BOLD}5.5 Music Assistant: нужен токен${RESET}"
-  IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)  # pipefail: без || true падает на macOS/пустом выводе
   say "${DIM}MA запущен: ${BLUE}http://${IP:-127.0.0.1}:8095${RESET}${DIM} — создайте там администратора.${RESET}"
 
   MA_READY=0
@@ -334,7 +334,8 @@ say "     ${DIM}иначе команды сможет отдавать любо
 say "  5. Скажите колонке: «${BOLD}Алиса, запусти навык ${SKILL_NAME}${RESET}»"
 say ""
 hr
-say "Пульт и диагностика: ${BLUE}http://$(hostname -I 2>/dev/null | awk '{print $1}'):8100${RESET}"
+PANEL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+say "Пульт и диагностика: ${BLUE}http://${PANEL_IP:-127.0.0.1}:8100${RESET}"
 say "Приложение для Windows: см. ${BOLD}windows/README.md${RESET}"
 say "Токен API (для пульта): ${DIM}$API_TOKEN${RESET}"
 say "Если что-то молчит: ${BOLD}./doctor.sh${RESET}"
